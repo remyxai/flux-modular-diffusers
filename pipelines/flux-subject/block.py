@@ -416,7 +416,7 @@ class FluxSubjectBlock(ModularPipelineBlocks):
         if bs.output_type == "latent":
             image = latents
         else:
-            lat = FluxPipeline._unpack_latents(latents, mh, mw, vsf)
+            lat = FluxPipeline._unpack_latents(latents, mh * vsf, mw * vsf, vsf)   # unpack expects PIXEL dims
             lat = ((lat / vae.config.scaling_factor) + vae.config.shift_factor)[:, :, :lh, :lw]
             image = vae.decode(lat.to(vae.dtype), return_dict=False)[0]
             image = img_proc.postprocess(image, output_type=bs.output_type)
