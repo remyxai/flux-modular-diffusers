@@ -215,7 +215,7 @@ class TiledUpscalerBlock(ModularPipelineBlocks):
                 tile_px = canvas_px[:, y:y + tile, x:x + tile]
                 scheduler.set_begin_index(0)
                 sigmas = np.linspace(1.0, 1 / n_steps, n_steps)
-                mu = calculate_shift((tile // 2) ** 2, scheduler.config.get("base_image_seq_len", 256),
+                mu = calculate_shift(((tile // vsf) // 2) ** 2, scheduler.config.get("base_image_seq_len", 256),
                                      scheduler.config.get("max_image_seq_len", 4096),
                                      scheduler.config.get("base_shift", 0.5),
                                      scheduler.config.get("max_shift", 1.15))
