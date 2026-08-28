@@ -27,6 +27,7 @@ Each `pipelines/<name>/` here is the **source** for a HF Hub repo (`remyxai/<nam
 | [regional-prompting](pipelines/regional-prompting) | control | a different prompt per region | [🤗](https://huggingface.co/remyxai/regional-prompting-flux-modular) |
 | [style-aligned](pipelines/style-aligned) | style | one style across a set | [🤗](https://huggingface.co/remyxai/style-aligned-flux-modular) |
 | [story-diffusion](pipelines/story-diffusion) | consistency | one character across a comic | [🤗](https://huggingface.co/remyxai/story-diffusion-flux-modular) |
+| [tiled-upscaler](pipelines/tiled-upscaler) | upscale | creative ×2/×4 upscaling — tiled FLUX img2img adds detail beyond a resize | [🤗](https://huggingface.co/remyxai/tiled-upscaler-flux-modular) |
 
 ## How this repo works
 
