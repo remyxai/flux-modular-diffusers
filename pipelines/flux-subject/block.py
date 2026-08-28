@@ -1,5 +1,15 @@
 # "Flux Already Knows" for FLUX — training-free subject-driven generation as a Modular Diffusers block.
 #
+# ┌─ NO-GO (2026-08-28) ─────────────────────────────────────────────────────────────────────────┐
+# │ This port does NOT reproduce to shippable quality and is SHELVED. Structural bugs were fixed  │
+# │ (joint-attn slice, decode _unpack_latents pixel dims) so it RUNS, but subject identity stays  │
+# │ soft. Both amplification levers the reference relies on BREAK this port: the cascade up-weight │
+# │ ([VERIFY-upsample], flattened-index interpolation) diverges more as strength rises, and RAW    │
+# │ subject latents ([VERIFY-encode]) collapse the denoise to blank scenes. Best-known config is   │
+# │ scaled encode + cascade off (subject_strength=0) — a "roughly subject-shaped" blob, not crisp. │
+# │ To revive: faithful line-by-line reproduction vs bytedance/LatentUnfold + GPU iteration.       │
+# └──────────────────────────────────────────────────────────────────────────────────────────────┘
+#
 # Method: LatentUnfold / "Flux Already Knows — Activating Subject-Driven Image Generation without
 # Training" (arXiv:2504.11478 — Kang, Fotiadis, Jiang, Yan, Jia, Liu, Chong, Lu). Reference:
 # bytedance/LatentUnfold (Apache-2.0). Put a reference subject (an object / product / character)
@@ -319,16 +329,14 @@ class FluxSubjectBlock(ModularPipelineBlocks):
         subjects = [self._prepare_subject(s, (width, height), bool(bs.remove_background), device) for s in subs]
         img_proc = VaeImageProcessor(vae_scale_factor=vsf)
 
-        def _encode(img, raw=False):
+        def _encode(img):
             px = img_proc.preprocess(img, height=height, width=width).to(device=device, dtype=vae.dtype)
             z = vae.encode(px).latent_dist.mode()                    # argmax, as in the reference
-            # [VERIFY-encode] the reference conditions the SUBJECT tiles on RAW VAE latents (louder,
-            # off-distribution) — that loudness is what makes the subject dominate the sequence, so a
-            # scaled encode washes the identity out. The generation tile stays scaled (it is what the
-            # transformer denoises, then decoded via (z/scaling)+shift).
-            return z.to(dtype) if raw else ((z - vae.config.shift_factor) * vae.config.scaling_factor).to(dtype)
+            # Best-known: SCALED encode. ([VERIFY-encode] the reference uses RAW subject latents; tried
+            # that here and it collapsed the denoise to blank scenes — see the NO-GO banner up top.)
+            return ((z - vae.config.shift_factor) * vae.config.scaling_factor).to(dtype)
 
-        refs = [_encode(im, raw=True) for im in subjects][: max(rows * cols - 1, 0)]   # raw = reference
+        refs = [_encode(im) for im in subjects][: max(rows * cols - 1, 0)]
         white = _encode(self._white_tile(width, height))
         mosaic = white.repeat(1, 1, rows, cols)
         rng = random.Random(int(bs.seed))                            # local RNG: no global mutation
