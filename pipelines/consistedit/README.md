@@ -47,7 +47,7 @@ edited = pipe(
     mask="mask.png",             # white = region to edit, black = keep intact
     source_prompt="a cat sitting on a sofa",   # describes the source image
     prompt="a dog sitting on a sofa",          # the target edit
-    consistency_strength=1.0,   # 1.0 = strict structure preservation, 0.3 = shape may change
+    consistency_strength=0.3,   # 0.3 (default) = clean edit + kept structure; 0.6-1.0 barely edits
     T_steps=28, guidance_scale=3.5,
 ).images[0]
 edited.save("edited.png")
@@ -55,9 +55,10 @@ edited.save("edited.png")
 
 **Tip:** `mask` is optional — with `mask=None` the whole image is editable and the attention seam is
 disarmed (bit-exact stock FLUX attention, i.e. plain RF-inversion editing). Use a mask whenever you
-want the non-edited region held, and pick `consistency_strength` by task: **1.0** for
-structure-consistent edits (recolor a garment, keep the folds), **~0.3** when the target prompt
-should be allowed to change shape.
+want the non-edited region held, and pick `consistency_strength` by task: **~0.3** (default) lands a
+clean edit while holding structure + background; **0.6–1.0** preserve so strongly the shape barely
+changes — use them for recolor / texture tweaks that must keep the exact silhouette; **0** removes the
+control entirely (can over-edit / look cartoonish).
 
 ## How it works
 
@@ -95,7 +96,7 @@ instead of two.
 | `source_prompt` | — | description of the source image |
 | `prompt` | — | the target edit |
 | `mask` | `None` | edit region: white (255) = edit, black = keep; `None` = whole image editable |
-| `consistency_strength` | 1.0 | α — ratio of denoise steps that enforce the source Q/K in the edit region. 1.0 = strict structure preservation, 0.3 = let the prompt change shape, 0.0 = no attention control (stock denoise) |
+| `consistency_strength` | 0.3 | α — ratio of denoise steps that enforce the source Q/K in the edit region. **0.3 (default)** = clean edit while structure/background hold; 0.6–1.0 = strong preservation (edit barely changes shape); 0.0 = no control (stock denoise, can over-edit) |
 | `guidance_scale` | 3.5 | edit (target) guidance (↑ = stronger edit) |
 | `src_guidance_scale` | 1.0 | inversion guidance (low = more faithful inversion) |
 | `T_steps` | 28 | inversion + denoise steps |
