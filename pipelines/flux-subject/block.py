@@ -212,7 +212,10 @@ class FluxSubjectBlock(ModularPipelineBlocks):
             InputParam("grid_shape", default=(3, 3)),     # mosaic rows/cols; (1,1) = no reference tiles = stock FLUX
             InputParam("num_inference_steps", default=28),
             InputParam("guidance_scale", default=7.0),    # the reference's value (not FLUX's usual 3.5)
-            InputParam("subject_strength", default=0.05), # cascade weight (reference's aug_att); 0.0 = pure mosaic
+            InputParam("subject_strength", default=0.0),  # cascade weight (reference's aug_att). Default OFF:
+                                                          # the cascade up-weight's flattened-index upsample
+                                                          # ([VERIFY-upsample]) corrupts more as it rises, so
+                                                          # pure mosaic (0.0) is the reliable mode. >0 = opt-in.
             InputParam("cascade", default=(2, 3)),        # pooling factors; () disables cascade attention
             InputParam("injection_steps", default=14),    # apply cascade attention only over the first N steps
             InputParam("cascade_start_frac", default=0.0),# skip the first frac of dual-stream layers (0.0 = reference)
@@ -316,12 +319,16 @@ class FluxSubjectBlock(ModularPipelineBlocks):
         subjects = [self._prepare_subject(s, (width, height), bool(bs.remove_background), device) for s in subs]
         img_proc = VaeImageProcessor(vae_scale_factor=vsf)
 
-        def _encode(img):
+        def _encode(img, raw=False):
             px = img_proc.preprocess(img, height=height, width=width).to(device=device, dtype=vae.dtype)
             z = vae.encode(px).latent_dist.mode()                    # argmax, as in the reference
-            return ((z - vae.config.shift_factor) * vae.config.scaling_factor).to(dtype)   # [VERIFY-encode]
+            # [VERIFY-encode] the reference conditions the SUBJECT tiles on RAW VAE latents (louder,
+            # off-distribution) — that loudness is what makes the subject dominate the sequence, so a
+            # scaled encode washes the identity out. The generation tile stays scaled (it is what the
+            # transformer denoises, then decoded via (z/scaling)+shift).
+            return z.to(dtype) if raw else ((z - vae.config.shift_factor) * vae.config.scaling_factor).to(dtype)
 
-        refs = [_encode(im) for im in subjects][: max(rows * cols - 1, 0)]
+        refs = [_encode(im, raw=True) for im in subjects][: max(rows * cols - 1, 0)]   # raw = reference
         white = _encode(self._white_tile(width, height))
         mosaic = white.repeat(1, 1, rows, cols)
         rng = random.Random(int(bs.seed))                            # local RNG: no global mutation
