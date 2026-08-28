@@ -114,11 +114,14 @@ class ConsistEditFluxAttnProcessor(FluxAttnProcessor):
         # in the edit region too — full structural preservation, shape cannot change; once the
         # window closes the edit region takes the target Q/K and only V stays source-blended.
         w_qk = torch.ones_like(w) if consistedit["struct"] else w
-        q = torch.lerp(q[:, n_txt:], q_s[:, n_txt:], w_qk)
-        k = torch.lerp(k[:, n_txt:], k_s[:, n_txt:], w_qk)
+        # Blend only the VISION slice in place; the text tokens [:n_txt] stay the target's, so Q/K/V
+        # keep the full joint length (n_txt + n_img) that image_rotary_emb and the single-stream
+        # block expect. (Collapsing to the vision slice dropped the text tokens and mismatched RoPE.)
+        q[:, n_txt:] = torch.lerp(q[:, n_txt:], q_s[:, n_txt:], w_qk)
+        k[:, n_txt:] = torch.lerp(k[:, n_txt:], k_s[:, n_txt:], w_qk)
         # content fusion: V is source only outside the mask (source V everywhere caused colour
         # shifts; target V everywhere broke the non-edited content — the paper blends by mask).
-        v = torch.lerp(v[:, n_txt:], v_s[:, n_txt:], w)
+        v[:, n_txt:] = torch.lerp(v[:, n_txt:], v_s[:, n_txt:], w)
 
         if image_rotary_emb is not None:
             q = apply_rotary_emb(q, image_rotary_emb, sequence_dim=1)
