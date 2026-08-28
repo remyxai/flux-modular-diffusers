@@ -165,9 +165,14 @@ class ConsistEditBlock(ModularPipelineBlocks):
             InputParam("source_prompt", required=True),     # describes the source image
             InputParam("mask", default=None),               # edit region (white=edit, black=keep);
                                                             # None -> whole image editable
-            InputParam("consistency_strength", default=1.0),# alpha: 1 = strict structure preservation
-                                                            # even against shape-changing prompts,
-                                                            # 0 = no attention control (stock denoise)
+            InputParam("consistency_strength", default=0.3),# alpha = ratio of steps the source Q/K are
+                                                            # enforced in the edit region. Validated on
+                                                            # FLUX: ~0.3 lands a clean edit while holding
+                                                            # structure + background; 0.6-1.0 preserve so
+                                                            # hard the shape barely changes (≈no edit);
+                                                            # 0 = no control (stock denoise, can
+                                                            # over-edit / look cartoonish). Raise toward
+                                                            # 1 for subtle pose-preserving tweaks.
             InputParam("prompt_2", default=None),
             InputParam("source_prompt_2", default=None),
             InputParam("max_sequence_length", default=512),
