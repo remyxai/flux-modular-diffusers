@@ -28,6 +28,7 @@ Each `pipelines/<name>/` here is the **source** for a HF Hub repo (`remyxai/<nam
 | [style-aligned](pipelines/style-aligned) | style | one style across a set | [style-aligned-flux-modular](https://huggingface.co/remyxai/style-aligned-flux-modular) | [arXiv:2312.02133](https://arxiv.org/abs/2312.02133) | [google/style-aligned](https://github.com/google/style-aligned) |
 | [story-diffusion](pipelines/story-diffusion) | consistency | one character across a comic | [story-diffusion-flux-modular](https://huggingface.co/remyxai/story-diffusion-flux-modular) | [arXiv:2405.01434](https://arxiv.org/abs/2405.01434) | [HVision-NKU/StoryDiffusion](https://github.com/HVision-NKU/StoryDiffusion) |
 | [kv-edit](pipelines/kv-edit) | editing | masked text edit, background pixel-precise (cached K/V) | [kv-edit-flux-modular](https://huggingface.co/remyxai/kv-edit-flux-modular) | [arXiv:2502.17363](https://arxiv.org/abs/2502.17363) | [Xilluill/KV-Edit](https://github.com/Xilluill/KV-Edit) |
+| [flux-subject](pipelines/flux-subject) | personalization | an arbitrary subject into a new scene (mosaic + cascade attention) | [flux-subject-flux-modular](https://huggingface.co/remyxai/flux-subject-flux-modular) | [arXiv:2504.11478](https://arxiv.org/abs/2504.11478) | [bytedance/LatentUnfold](https://github.com/bytedance/LatentUnfold) |
 
 ## How this repo works
 
