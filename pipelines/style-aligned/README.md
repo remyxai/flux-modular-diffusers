@@ -14,6 +14,8 @@ license_link: https://huggingface.co/black-forest-labs/FLUX.1-dev/blob/main/LICE
 
 # StyleAligned for FLUX — training-free style-consistent set generation (Modular Diffusers custom block)
 
+**🤗 Hub:** [remyxai/style-aligned-flux-modular](https://huggingface.co/remyxai/style-aligned-flux-modular) · **📄 Paper:** [arXiv:2312.02133](https://arxiv.org/abs/2312.02133) · **💻 Reference:** [google/style-aligned](https://github.com/google/style-aligned) · **📦 Monorepo:** [flux-modular-diffusers](https://github.com/remyxai/flux-modular-diffusers)
+
 Generate a **set of images that share one coherent style** — no fine-tuning — as a
 [Modular Diffusers](https://huggingface.co/docs/diffusers/main/en/modular_diffusers/custom_blocks)
 custom block. Implements **StyleAligned** ([arXiv:2312.02133](https://arxiv.org/abs/2312.02133)) on FLUX:

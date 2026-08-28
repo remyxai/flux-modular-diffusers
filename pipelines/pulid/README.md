@@ -13,6 +13,8 @@ license: apache-2.0
 
 # PuLID for FLUX — training-free identity personalization (Modular Diffusers custom block)
 
+**🤗 Hub:** [remyxai/pulid-flux-modular](https://huggingface.co/remyxai/pulid-flux-modular) · **📄 Paper:** [arXiv:2404.16022](https://arxiv.org/abs/2404.16022) · **💻 Reference:** [ToTheBeginning/PuLID](https://github.com/ToTheBeginning/PuLID) · **📦 Monorepo:** [flux-modular-diffusers](https://github.com/remyxai/flux-modular-diffusers)
+
 Put a face into an off-the-shelf **FLUX.1-dev** generation — no fine-tuning, no LoRA — as a
 [Modular Diffusers](https://huggingface.co/docs/diffusers/main/en/modular_diffusers/custom_blocks)
 custom block. Implements **PuLID** ([arXiv:2404.16022](https://arxiv.org/abs/2404.16022)): an ID

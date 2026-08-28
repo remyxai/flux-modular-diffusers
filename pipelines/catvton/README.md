@@ -14,6 +14,8 @@ license_link: https://huggingface.co/black-forest-labs/FLUX.1-dev/blob/main/LICE
 
 # CatVTON for FLUX — training-free virtual try-on (Modular Diffusers custom block)
 
+**🤗 Hub:** [remyxai/catvton-flux-modular](https://huggingface.co/remyxai/catvton-flux-modular) · **📄 Paper:** [arXiv:2407.15886](https://arxiv.org/abs/2407.15886) · **💻 Reference:** [nftblackmagic/catvton-flux](https://github.com/nftblackmagic/catvton-flux) · **📦 Monorepo:** [flux-modular-diffusers](https://github.com/remyxai/flux-modular-diffusers)
+
 Put a garment on a person from **one photo each** — no fine-tuning — as a
 [Modular Diffusers](https://huggingface.co/docs/diffusers/main/en/modular_diffusers/custom_blocks)
 custom block. Implements **CatVTON** ([arXiv:2407.15886](https://arxiv.org/abs/2407.15886), *"Concatenation

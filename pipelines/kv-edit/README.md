@@ -13,6 +13,8 @@ license_link: https://huggingface.co/black-forest-labs/FLUX.1-dev/blob/main/LICE
 
 # KV-Edit for FLUX — training-free editing with pixel-precise background preservation (Modular Diffusers custom block)
 
+**🤗 Hub:** [remyxai/kv-edit-flux-modular](https://huggingface.co/remyxai/kv-edit-flux-modular) · **📄 Paper:** [arXiv:2502.17363](https://arxiv.org/abs/2502.17363) · **💻 Reference:** [Xilluill/KV-Edit](https://github.com/Xilluill/KV-Edit) · **📦 Monorepo:** [flux-modular-diffusers](https://github.com/remyxai/flux-modular-diffusers)
+
 Text-based image editing on off-the-shelf **FLUX.1-dev** — **no training, no extra weights** — as a
 [Modular Diffusers](https://huggingface.co/docs/diffusers/main/en/modular_diffusers/custom_blocks)
 custom block. Implements **KV-Edit** ([arXiv:2502.17363](https://arxiv.org/abs/2502.17363)): the source

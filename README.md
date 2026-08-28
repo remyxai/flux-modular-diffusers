@@ -17,17 +17,17 @@ Each `pipelines/<name>/` here is the **source** for a HF Hub repo (`remyxai/<nam
 
 ## Catalog
 
-| pipeline | axis | what it does | Hub repo |
-|---|---|---|---|
-| [hrdit](pipelines/hrdit) | high-res | training-free 4K (resolution ladder + NTK RoPE + SPA + structure) | [🤗](https://huggingface.co/remyxai/hrdit-flux-modular) |
-| [dype](pipelines/dype) | high-res | single-pass ultra-high-res (dynamic RoPE) + SEGA speckle fix | [🤗](https://huggingface.co/remyxai/dype-flux-modular) |
-| [pulid](pipelines/pulid) | identity | face personalization from one photo | [🤗](https://huggingface.co/remyxai/pulid-flux-modular) |
-| [catvton](pipelines/catvton) | try-on | a garment onto a person | [🤗](https://huggingface.co/remyxai/catvton-flux-modular) |
-| [flowedit](pipelines/flowedit) | editing | inversion-free, structure-preserving text edit | [🤗](https://huggingface.co/remyxai/flowedit-flux-modular) |
-| [regional-prompting](pipelines/regional-prompting) | control | a different prompt per region | [🤗](https://huggingface.co/remyxai/regional-prompting-flux-modular) |
-| [style-aligned](pipelines/style-aligned) | style | one style across a set | [🤗](https://huggingface.co/remyxai/style-aligned-flux-modular) |
-| [story-diffusion](pipelines/story-diffusion) | consistency | one character across a comic | [🤗](https://huggingface.co/remyxai/story-diffusion-flux-modular) |
-| [kv-edit](pipelines/kv-edit) | editing | masked text edit, background pixel-precise (cached K/V) | [🤗](https://huggingface.co/remyxai/kv-edit-flux-modular) |
+| pipeline | axis | what it does | 🤗 Hub | 📄 paper | source |
+|---|---|---|---|---|---|
+| [hrdit](pipelines/hrdit) | high-res | training-free 4K (resolution ladder + NTK RoPE + SPA + structure) | [hrdit-flux-modular](https://huggingface.co/remyxai/hrdit-flux-modular) | [arXiv:2608.07003](https://arxiv.org/abs/2608.07003) | [zylwithxy/HRDiT](https://github.com/zylwithxy/HRDiT) |
+| [dype](pipelines/dype) | high-res | single-pass ultra-high-res (dynamic RoPE) + SEGA speckle fix | [dype-flux-modular](https://huggingface.co/remyxai/dype-flux-modular) | [arXiv:2510.20766](https://arxiv.org/abs/2510.20766) | [guyyariv/DyPE](https://github.com/guyyariv/DyPE) |
+| [pulid](pipelines/pulid) | identity | face personalization from one photo | [pulid-flux-modular](https://huggingface.co/remyxai/pulid-flux-modular) | [arXiv:2404.16022](https://arxiv.org/abs/2404.16022) | [ToTheBeginning/PuLID](https://github.com/ToTheBeginning/PuLID) |
+| [catvton](pipelines/catvton) | try-on | a garment onto a person | [catvton-flux-modular](https://huggingface.co/remyxai/catvton-flux-modular) | [arXiv:2407.15886](https://arxiv.org/abs/2407.15886) | [nftblackmagic/catvton-flux](https://github.com/nftblackmagic/catvton-flux) |
+| [flowedit](pipelines/flowedit) | editing | inversion-free, structure-preserving text edit | [flowedit-flux-modular](https://huggingface.co/remyxai/flowedit-flux-modular) | [arXiv:2412.08629](https://arxiv.org/abs/2412.08629) | [fallenshock/FlowEdit](https://github.com/fallenshock/FlowEdit) |
+| [regional-prompting](pipelines/regional-prompting) | control | a different prompt per region | [regional-prompting-flux-modular](https://huggingface.co/remyxai/regional-prompting-flux-modular) | [arXiv:2302.08113](https://arxiv.org/abs/2302.08113) | [hako-mikan/…regional-prompter](https://github.com/hako-mikan/sd-webui-regional-prompter) |
+| [style-aligned](pipelines/style-aligned) | style | one style across a set | [style-aligned-flux-modular](https://huggingface.co/remyxai/style-aligned-flux-modular) | [arXiv:2312.02133](https://arxiv.org/abs/2312.02133) | [google/style-aligned](https://github.com/google/style-aligned) |
+| [story-diffusion](pipelines/story-diffusion) | consistency | one character across a comic | [story-diffusion-flux-modular](https://huggingface.co/remyxai/story-diffusion-flux-modular) | [arXiv:2405.01434](https://arxiv.org/abs/2405.01434) | [HVision-NKU/StoryDiffusion](https://github.com/HVision-NKU/StoryDiffusion) |
+| [kv-edit](pipelines/kv-edit) | editing | masked text edit, background pixel-precise (cached K/V) | [kv-edit-flux-modular](https://huggingface.co/remyxai/kv-edit-flux-modular) | [arXiv:2502.17363](https://arxiv.org/abs/2502.17363) | [Xilluill/KV-Edit](https://github.com/Xilluill/KV-Edit) |
 
 ## How this repo works
 

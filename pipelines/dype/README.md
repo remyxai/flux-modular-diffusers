@@ -12,6 +12,8 @@ license: mit
 
 # DyPE for FLUX — training-free ultra-high-resolution (Modular Diffusers custom block)
 
+**🤗 Hub:** [remyxai/dype-flux-modular](https://huggingface.co/remyxai/dype-flux-modular) · **📄 Paper:** [arXiv:2510.20766](https://arxiv.org/abs/2510.20766) · **💻 Reference:** [guyyariv/DyPE](https://github.com/guyyariv/DyPE) · **📦 Monorepo:** [flux-modular-diffusers](https://github.com/remyxai/flux-modular-diffusers)
+
 Training-free text-to-image up to 4096² from off-the-shelf **FLUX.1-Krea-dev** — no fine-tuning, no extra
 weights, **single pass** — packaged as a
 [Modular Diffusers](https://huggingface.co/docs/diffusers/main/en/modular_diffusers/custom_blocks)

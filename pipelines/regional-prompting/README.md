@@ -14,6 +14,8 @@ license_link: https://huggingface.co/black-forest-labs/FLUX.1-dev/blob/main/LICE
 
 # Regional Prompting for FLUX — training-free spatial prompt control (Modular Diffusers custom block)
 
+**🤗 Hub:** [remyxai/regional-prompting-flux-modular](https://huggingface.co/remyxai/regional-prompting-flux-modular) · **📄 Paper:** [arXiv:2302.08113](https://arxiv.org/abs/2302.08113) · **💻 Reference:** [hako-mikan/sd-webui-regional-prompter](https://github.com/hako-mikan/sd-webui-regional-prompter) · **📦 Monorepo:** [flux-modular-diffusers](https://github.com/remyxai/flux-modular-diffusers)
+
 Put **different prompts in different regions** of one image — no fine-tuning — as a
 [Modular Diffusers](https://huggingface.co/docs/diffusers/main/en/modular_diffusers/custom_blocks)
 custom block. A base prompt sets the scene and each region gets its own prompt; a **joint-attention mask**
