@@ -143,7 +143,8 @@ class TiledUpscalerBlock(ModularPipelineBlocks):
         """One FLUX img2img pass over a single tile: encode -> partial noise -> denoise -> decode to pixels."""
         th, tw = tile_px.shape[-2], tile_px.shape[-1]
         lh, lw = th // vsf, tw // vsf
-        x_init = vae.encode(tile_px.to(device=device, dtype=vae.dtype)).latent_dist.mode()
+        tile_in = tile_px if tile_px.dim() == 4 else tile_px.unsqueeze(0)   # VAE expects [B, C, H, W]
+        x_init = vae.encode(tile_in.to(device=device, dtype=vae.dtype)).latent_dist.mode()
         x_init = ((x_init - vae.config.shift_factor) * vae.config.scaling_factor).to(dtype)
         latents = FluxPipeline._pack_latents(x_init, 1, num_channels_latents, lh, lw)
         img_ids = FluxPipeline._prepare_latent_image_ids(None, lh // 2, lw // 2, device, dtype)
