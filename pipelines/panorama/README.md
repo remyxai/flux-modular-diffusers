@@ -85,10 +85,13 @@ held once. The VAE decode uses tiling (a 4K-class decode otherwise dominates mem
 | `guidance_scale` | 3.5 | FLUX guidance |
 | `num_inference_steps` | 28 | denoise steps (applied to the whole canvas) |
 
-**Tuning:** the overlap is the quality lever. `stride=512` (50% of a 1024 window) is a good default;
-raise the overlap (lower the stride) if you see repeated content or a visible band at a boundary —
-barely-overlapping windows repeat. Cost scales with the number of windows: a 3072×1024 canvas at
-1024/512 is 5 window passes per step, so roughly 5× a native 1024×1024 step.
+**Tuning:** the overlap is the quality lever. `stride=512` (50% of a 1024 window) is a good, fast
+default; raise the overlap (lower the stride) if you see repeated content or a faint tonal band at a
+boundary — barely-overlapping windows repeat, and lightly-overlapping ones can leave a soft exposure
+step. Cost scales with the number of windows: a 3072×1024 canvas at 1024/512 is 5 window passes per
+step, roughly 5× a native 1024×1024 step. **For the smoothest result (the hero above): `stride=256`
+(75% overlap) with `guidance_scale=3.0`** — the extra overlap plus slightly lower guidance removes the
+faint between-window banding, at ~2× the passes.
 
 ## Dependencies
 
