@@ -15,9 +15,11 @@ name: Outrider
 # both per run (that's how a two-tier refiner dispatches its promotions).
 
 on:
-  schedule:
-    # Daily at 14:00 UTC
-    - cron: '0 14 * * *'
+  # Disabled: this repo is brief-driven (manual `remyxai outrider trigger --brief @briefs/<name>.md`).
+  # Re-enable for weekly arXiv scouting by uncommenting the schedule block below.
+  # schedule:
+  #   # Daily at 14:00 UTC
+  #   - cron: '0 14 * * *'
   workflow_dispatch:
     inputs:
       pin-arxiv:
