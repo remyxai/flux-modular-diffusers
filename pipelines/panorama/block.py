@@ -172,9 +172,9 @@ class PanoramaBlock(ModularPipelineBlocks):
         # fp32 sum + coverage buffers; each window contributes 1 to the coverage of its tokens, and the
         # mean is taken once per step (this is the MultiDiffusion fusion rule)
         canvas_v = torch.zeros_like(latents, dtype=torch.float32)
-        coverage = torch.zeros(1, 1, gh * gw, 1, device=device, dtype=torch.float32)
+        coverage = torch.zeros(1, gh * gw, 1, device=device, dtype=torch.float32)
         for m in win_idx:
-            coverage.index_add_(2, m, torch.ones(1, 1, m.numel(), 1, device=device))
+            coverage.index_add_(1, m, torch.ones(1, m.numel(), 1, device=device))
 
         # --- sigma schedule at the WINDOW token count, not the canvas token count: every window is
         # native-resolution, so mu is shifted by the window's sequence length. Using the full canvas
@@ -190,10 +190,10 @@ class PanoramaBlock(ModularPipelineBlocks):
         for t in timesteps:
             canvas_v.zero_()
             for ids, m in zip(win_ids, win_idx):
-                v = tr(hidden_states=latents[:, :, m], timestep=t.expand(1).to(dtype) / 1000, guidance=guidance,
+                v = tr(hidden_states=latents[:, m], timestep=t.expand(1).to(dtype) / 1000, guidance=guidance,
                        pooled_projections=pooled, encoder_hidden_states=prompt_embeds, txt_ids=text_ids,
                        img_ids=ids, return_dict=False)[0]
-                canvas_v.index_add_(2, m, v.to(torch.float32))
+                canvas_v.index_add_(1, m, v.to(torch.float32))
             noise_pred = (canvas_v / coverage).to(dtype)          # per-pixel mean over covering windows
             latents = scheduler.step(noise_pred, t, latents, return_dict=False)[0]
 
