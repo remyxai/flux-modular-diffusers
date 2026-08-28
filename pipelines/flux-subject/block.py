@@ -150,11 +150,12 @@ class SubjectCascadeFluxAttnProcessor(FluxAttnProcessor):
             return torch.softmax(qf @ kf.transpose(-2, -1) * scale, dim=-1)
 
         attn_prob = _prob(torch.cat([eq, q], dim=1), torch.cat([ek, k], dim=1), image_rotary_emb)
-        # attn_prob is a softmax output, hence contiguous, so this is a TRUE view and the in-place
-        # add below lands in it. (The reference relies on einops leaving its `attention_probs_image`
-        # slice a view, which is not guaranteed for a non-contiguous slice; `view` here would raise
-        # loudly rather than silently drop the cascade if that assumption ever broke.)
-        prob_grid = attn_prob.view(batch, attn.heads, gh, gw, gh, gw)
+        # attn_prob is the FULL joint (n_txt + n_img)^2 matrix; the cascade up-weights only the
+        # image->image block. That block is a strided (non-contiguous) slice, so it can't be
+        # `.view`-reshaped to the (gh, gw, gh, gw) grid in place. Work on a contiguous copy, then
+        # fold it back into attn_prob below so the output projection sees the modified probabilities.
+        img_prob = attn_prob[:, :, n_txt:, n_txt:].contiguous()
+        prob_grid = img_prob.view(batch, attn.heads, gh, gw, gh, gw)
         for i, factor in enumerate(sc["cascade"]):
             pq = _pool_tokens(q, factor, gh, gw)
             pk = _pool_tokens(k, factor, gh, gw)
@@ -166,6 +167,9 @@ class SubjectCascadeFluxAttnProcessor(FluxAttnProcessor):
             weight = sc["strength"] / factor / len(sc["cascade"])
             prob_grid[:, :, :th, :tw, :th, tw:] += up[:, :, :th, :tw, :th, tw:] * weight
             prob_grid[:, :, :th, :tw, th:, :] += up[:, :, :th, :tw, th:, :] * weight
+
+        attn_prob[:, :, n_txt:, n_txt:] = img_prob      # fold the cascade back into the joint matrix
+        del img_prob
 
         out = (attn_prob @ torch.cat([ev, v], dim=1).transpose(1, 2)).transpose(1, 2).flatten(2, 3).to(q.dtype)
         enc, out = out.split_with_sizes([n_txt, out.shape[1] - n_txt], dim=1)
