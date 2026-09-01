@@ -189,9 +189,12 @@ class StitchBlock(ModularPipelineBlocks):
             InputParam("height", default=1024),
             InputParam("width", default=1024),
             InputParam("num_inference_steps", default=50),  # T (paper Table 1)
-            InputParam("region_bind_steps", default=10),    # S: Region-Binding steps tau in [0,S)
+            InputParam("region_bind_steps", default=4),     # S: Region-Binding steps tau in [0,S). Tuned on
+                                                            # FLUX: fewer confined steps let the refine
+                                                            # de-boxify objects (paper used 10; 4 is cleaner).
             InputParam("guidance_scale", default=3.5),
-            InputParam("cutout_eta", default=0.95),         # cumulative attention mass kept
+            InputParam("cutout_eta", default=0.65),         # cumulative attention mass kept (tuned on FLUX;
+                                                            # paper 0.95 pasted the box-fill -> slabs)
             InputParam("cutout_kernel", default=5),         # kappa: 2-D max-pool kernel
             InputParam("cutout_head", default=_DEFAULT_CUTOUT_HEAD),   # (block, head) — tunable
             InputParam("max_sequence_length", default=512),
