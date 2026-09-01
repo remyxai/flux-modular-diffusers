@@ -30,6 +30,7 @@ Each `pipelines/<name>/` here is the **source** for a HF Hub repo (`remyxai/<nam
 | [kv-edit](pipelines/kv-edit) | editing | masked text edit, background pixel-precise (cached K/V) | [kv-edit-flux-modular](https://huggingface.co/remyxai/kv-edit-flux-modular) | [arXiv:2502.17363](https://arxiv.org/abs/2502.17363) | [Xilluill/KV-Edit](https://github.com/Xilluill/KV-Edit) |
 | [consistedit](pipelines/consistedit) | editing | FLUX-native text edit, adjustable structural consistency (vision-token fusion on the single blocks) | [consistedit-flux-modular](https://huggingface.co/remyxai/consistedit-flux-modular) | [arXiv:2510.17803](https://arxiv.org/abs/2510.17803) | [zxYin/ConsistEdit_Code](https://github.com/zxYin/ConsistEdit_Code) |
 | [panorama](pipelines/panorama) | processing | ultra-wide / panoramic generation (fused windows, clean-room) | [panorama-flux-modular](https://huggingface.co/remyxai/panorama-flux-modular) | [arXiv:2302.08113](https://arxiv.org/abs/2302.08113) | [omerbt/MultiDiffusion](https://github.com/omerbt/MultiDiffusion) |
+| [stitch](pipelines/stitch) | control | hard bounding-box object placement (Region Binding + cutout/composite, clean-room) | [stitch-flux-modular](https://huggingface.co/remyxai/stitch-flux-modular) | [arXiv:2509.26644](https://arxiv.org/abs/2509.26644) | [ExplainableML/Stitch](https://github.com/ExplainableML/Stitch) |
 
 ## How this repo works
 
