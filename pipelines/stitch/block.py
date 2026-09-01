@@ -358,7 +358,7 @@ class StitchBlock(ModularPipelineBlocks):
         # ---------------------------------------------------------------- validate boxes
         box_masks = []
         for k, rg in enumerate(regions):
-            bm = self._box_tokens(rg["box"], gh, gw)
+            bm = self._box_tokens(rg["box"], gh, gw).to(device)
             if not bool(bm.any()):
                 raise ValueError(f"regions[{k}] box {rg['box']} selects no image token at {W}x{H}px.")
             box_masks.append(bm)
