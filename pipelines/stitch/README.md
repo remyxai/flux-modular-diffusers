@@ -31,6 +31,8 @@ blue sphere" and the objects swap, merge, or drift. Stitch fixes exactly that, a
 does *soft* per-region prompt routing (a base prompt plus per-region prompts in one pass, no boxes
 and no compositing). Use Stitch when you know where things should go.
 
+![Stitch — "a red cube to the left of a blue sphere" placed by bounding boxes on FLUX](assets/stitch_2obj.png)
+
 ## Usage
 
 ```python
@@ -60,7 +62,7 @@ img.save("stitch.png")
 
 Three phases, all training-free on the frozen FLUX weights:
 
-1. **Region Binding** (`region_bind_steps` = S = 10). For the first S steps the transformer runs
+1. **Region Binding** (`region_bind_steps` = S, default 4). For the first S steps the transformer runs
    **once per region, plus once for the background prompt** — K+1 passes per step, all started from
    the same noise so they stay registered token-for-token. In each object pass an **additive
    joint-attention mask** confines generation to the box: inside-box image tokens can't attend
@@ -70,7 +72,7 @@ Three phases, all training-free on the frozen FLUX weights:
 2. **Cutout + composite** (at τ = S). For each object pass the block reads the **text→image
    attention of one fixed head** (`cutout_head`, default block 14 / head 20 for FLUX.1-dev), averages
    it over the non-pad text tokens, sorts descending, and keeps tokens until their cumulative mass
-   reaches `cutout_eta` = 0.95 — then 2-D max-pools that token mask with `cutout_kernel` = 5 to close
+   reaches `cutout_eta` = 0.65 — then 2-D max-pools that token mask with `cutout_kernel` = 5 to close
    holes. Each object's foreground latent tokens are written into the background latent at the box.
 3. **Refine** (steps S…T). The composite is denoised by a **single unmasked pass** on the full
    global prompt to the end, which blends the objects into one coherent scene. Decode.
@@ -95,20 +97,21 @@ batch them instead of running them sequentially. A 2-region 50-step run is ≈ 1
 | `prompt` | — | global prompt for the whole scene (required) |
 | `regions` | None | list of `{"box": [x0,y0,x1,y1], "prompt": str}` (normalized); `None`/`[]` → stock FLUX |
 | `background_prompt` | `""` | background pass's prompt; `""` → derived from `prompt` |
-| `region_bind_steps` | 10 | S: Region-Binding steps (paper Table 1) |
+| `region_bind_steps` | 4 | S: Region-Binding steps — fewer than the paper's 10; the refine de-boxifies |
 | `num_inference_steps` | 50 | T: total steps |
-| `cutout_eta` | 0.95 | cumulative attention mass kept by the Cutout threshold |
+| `cutout_eta` | 0.65 | cumulative attention mass kept by the Cutout threshold |
 | `cutout_kernel` | 5 | κ: 2-D max-pool kernel that solidifies the foreground mask |
-| `cutout_head` | (14, 20) | `(block, head)` the Cutout reads — paper-reported for FLUX.1-dev; re-pick via the smoke notebook's head dump if your build's indexing differs |
+| `cutout_head` | (14, 20) | `(block, head)` the Cutout reads — paper-reported for FLUX.1-dev; re-pick via `head_probe.ipynb` if your build's indexing differs |
 | `guidance_scale` | 3.5 | FLUX guidance |
 | `height` / `width` | 1024 | canvas size (multiple of 16) |
 
-**Tuning:** if objects fuse with the background or each other, raise `region_bind_steps` (more
-binding, sharper separation) or lower `cutout_eta` (a tighter foreground). If the composite looks
-pasted-on, that is the blend — raise `num_inference_steps` so Phase C has more steps to reconcile
-it. `cutout_head` is the one knob that is genuinely per-build: the paper reports block 14 / head 20
-on FLUX.1-dev, and the smoke notebook dumps the text→image attention of the neighbouring heads at an
-early step so you can pick the head whose high-attention tokens best isolate a single object.
+**Tuning (defaults tuned on FLUX):** `region_bind_steps=4` + `cutout_eta=0.65` were chosen because the
+paper's 10 / 0.95 pasted the whole box-fill and produced rectangular *slabs* on FLUX. Sweet spot is
+**2–3 objects** (4+ may show minor per-region duplication). If objects come out boxy or duplicated,
+lower `cutout_eta` or `region_bind_steps` further (fewer confined steps let the refine de-boxify); if
+an object drifts out of its box, raise `region_bind_steps`. `cutout_head` is the one genuinely
+per-build knob — `head_probe.ipynb` sweeps `cutout_head`/`region_bind_steps`/`cutout_eta` and scores
+each so you can re-pick if your diffusers build indexes heads differently than the paper's 14/20.
 
 **Fallback:** if the Cutout is unstable on your build, note that Region Binding alone already gives
 strong position accuracy (the paper's ablation reports ~81% of the full method's spatial benefit) at
