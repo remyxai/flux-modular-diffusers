@@ -1,0 +1,15 @@
+{
+  "_class_name": "ModularPipeline",
+  "_diffusers_version": "0.41.0.dev0",
+  "_blocks_class_name": "AppearanceTransferBlock",
+  "text_encoder": [null, null, {"pretrained_model_name_or_path": "black-forest-labs/FLUX.1-Depth-dev", "subfolder": "text_encoder", "type_hint": ["transformers", "CLIPTextModel"], "revision": null, "variant": null}],
+  "tokenizer": [null, null, {"pretrained_model_name_or_path": "black-forest-labs/FLUX.1-Depth-dev", "subfolder": "tokenizer", "type_hint": ["transformers", "CLIPTokenizer"], "revision": null, "variant": null}],
+  "text_encoder_2": [null, null, {"pretrained_model_name_or_path": "black-forest-labs/FLUX.1-Depth-dev", "subfolder": "text_encoder_2", "type_hint": ["transformers", "T5EncoderModel"], "revision": null, "variant": null}],
+  "tokenizer_2": [null, null, {"pretrained_model_name_or_path": "black-forest-labs/FLUX.1-Depth-dev", "subfolder": "tokenizer_2", "type_hint": ["transformers", "T5TokenizerFast"], "revision": null, "variant": null}],
+  "transformer": [null, null, {"pretrained_model_name_or_path": "black-forest-labs/FLUX.1-Depth-dev", "subfolder": "transformer", "type_hint": ["diffusers", "FluxTransformer2DModel"], "revision": null, "variant": null}],
+  "vae": [null, null, {"pretrained_model_name_or_path": "black-forest-labs/FLUX.1-Depth-dev", "subfolder": "vae", "type_hint": ["diffusers", "AutoencoderKL"], "revision": null, "variant": null}],
+  "scheduler": [null, null, {"pretrained_model_name_or_path": "black-forest-labs/FLUX.1-Depth-dev", "subfolder": "scheduler", "type_hint": ["diffusers", "FlowMatchEulerDiscreteScheduler"], "revision": null, "variant": null}],
+  "image_encoder": [null, null, {"pretrained_model_name_or_path": "black-forest-labs/FLUX.1-Redux-dev", "subfolder": "image_encoder", "type_hint": ["transformers", "SiglipVisionModel"], "revision": null, "variant": null}],
+  "feature_extractor": [null, null, {"pretrained_model_name_or_path": "black-forest-labs/FLUX.1-Redux-dev", "subfolder": "feature_extractor", "type_hint": ["transformers", "SiglipImageProcessor"], "revision": null, "variant": null}],
+  "image_embedder": [null, null, {"pretrained_model_name_or_path": "black-forest-labs/FLUX.1-Redux-dev", "subfolder": "image_embedder", "type_hint": ["diffusers", "ReduxImageEncoder"], "revision": null, "variant": null}]
+}

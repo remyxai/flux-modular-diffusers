@@ -1,0 +1,7 @@
+{
+  "_class_name": "AppearanceTransferBlock",
+  "_diffusers_version": "0.41.0.dev0",
+  "auto_map": {
+    "ModularPipelineBlocks": "block.AppearanceTransferBlock"
+  }
+}
