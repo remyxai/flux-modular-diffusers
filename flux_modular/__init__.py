@@ -12,6 +12,7 @@ from .attention import (
     FluxIntervention,
     flux_intervention,
     edge_blocks,
+    edge_attn_ids,
     PAYLOAD_KEY,
     op_append,
     op_capture_image_kv,
@@ -21,6 +22,6 @@ from .attention import (
 
 __all__ = [
     "pack_latents", "unpack_latents", "prepare_latent_image_ids", "calculate_shift",
-    "FluxIntervention", "flux_intervention", "edge_blocks", "PAYLOAD_KEY",
+    "FluxIntervention", "flux_intervention", "edge_blocks", "edge_attn_ids", "PAYLOAD_KEY",
     "op_append", "op_capture_image_kv", "op_substitute", "op_blend",
 ]
