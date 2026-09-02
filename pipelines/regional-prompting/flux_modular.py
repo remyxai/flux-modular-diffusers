@@ -92,8 +92,12 @@ class FluxIntervention(FluxAttnProcessor):
     """
 
     def __call__(self, attn, hidden_states, encoder_hidden_states=None,
-                 attention_mask=None, image_rotary_emb=None, **kwargs):
-        pl = kwargs.get(PAYLOAD_KEY)
+                 attention_mask=None, image_rotary_emb=None, flux_mod=None):
+        # NOTE: `flux_mod` MUST be a NAMED parameter (not **kwargs): diffusers' FluxAttention.forward
+        # filters joint_attention_kwargs to keys that are explicit processor params, so a **kwargs
+        # payload key is silently dropped ("... not expected ... will be ignored"). Blocks pass
+        # joint_attention_kwargs={PAYLOAD_KEY: payload} where PAYLOAD_KEY == "flux_mod".
+        pl = flux_mod
         if pl is None:  # stock path — bit-exact + backend dispatch, zero reimplementation
             return super().__call__(attn, hidden_states, encoder_hidden_states, attention_mask, image_rotary_emb)
 
@@ -123,21 +127,19 @@ class FluxIntervention(FluxAttnProcessor):
             q, k, v = pl["post_rope"](q, k, v, n_txt, attn, pl)
 
         bias = pl["bias"](q, k, n_txt, attn, pl) if pl.get("bias") is not None else None
+        if bias is not None and bias.dtype != torch.bool:
+            bias = bias.to(device=q.device, dtype=q.dtype)   # dispatch/SDPA require mask dtype == query dtype
 
+        # side-channel: hand post-rope q/k to the callable so it can compute explicit attention weights
+        # (dispatch_attention_fn cannot expose them) at ITS target block/head and store them. Does NOT
+        # change the output (which stays on the dispatched path) — e.g. stitch reads the raw UNbiased head
+        # attention here while the output stays on the box-biased dispatch.
         if pl.get("weights") is not None:
-            # explicit attention so weights are observable (dispatch_attention_fn cannot expose them)
-            qh, kh, vh = q.transpose(1, 2), k.transpose(1, 2), v.transpose(1, 2)   # (B, heads, seq, dh)
-            scale = qh.shape[-1] ** -0.5
-            logits = (qh @ kh.transpose(-1, -2)) * scale
-            if bias is not None:
-                logits = logits + bias
-            probs = logits.softmax(dim=-1)
-            pl["weights"](probs, n_txt, attn, pl)
-            out = (probs @ vh).transpose(1, 2)                                     # back to (B, seq, heads, dh)
-        else:
-            out = dispatch_attention_fn(q, k, v, attn_mask=bias,
-                                        backend=getattr(self, "_attention_backend", None),
-                                        parallel_config=getattr(self, "_parallel_config", None))
+            pl["weights"](q, k, n_txt, attn, pl)
+
+        out = dispatch_attention_fn(q, k, v, attn_mask=bias,
+                                    backend=getattr(self, "_attention_backend", None),
+                                    parallel_config=getattr(self, "_parallel_config", None))
         out = out.flatten(2, 3).to(q.dtype)
         if pl.get("tap") is not None:
             pl["tap"](out, n_txt, attn, pl)
