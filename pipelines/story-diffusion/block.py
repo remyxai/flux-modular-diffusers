@@ -11,72 +11,18 @@
 
 import numpy as np
 import torch
-import torch.nn.functional as F
 
-from diffusers.models.embeddings import apply_rotary_emb
-from diffusers.models.transformers.transformer_flux import FluxAttnProcessor, _get_qkv_projections
 from diffusers.utils.torch_utils import randn_tensor
 from diffusers import FluxTransformer2DModel, AutoencoderKL, FlowMatchEulerDiscreteScheduler
 from diffusers.pipelines.flux.pipeline_flux import FluxPipeline, retrieve_timesteps, calculate_shift
 from diffusers.modular_pipelines import ModularPipelineBlocks, ComponentSpec, InputParam, OutputParam
 from transformers import CLIPTextModel, CLIPTokenizer, T5EncoderModel, T5TokenizerFast
 
+# Shared FLUX-modular attention primitive (vendored flat beside this file for trust_remote_code).
+# Consistent Self-Attention = share K/V across the batch of frames -> a post_rope op; no payload -> stock.
+from .flux_modular import flux_intervention, PAYLOAD_KEY
+
 _FLUX = "black-forest-labs/FLUX.1-dev"
-
-
-class ConsistentSelfAttnProcessor(FluxAttnProcessor):
-    """Consistent Self-Attention: each batch frame also attends to all frames' K/V. None -> stock (no-op)."""
-
-    def __call__(self, attn, hidden_states, encoder_hidden_states=None,
-                 attention_mask=None, image_rotary_emb=None, story_share=None, share_ratio=1.0):
-        if not story_share:
-            return super().__call__(attn, hidden_states, encoder_hidden_states, attention_mask, image_rotary_emb)
-        q, k, v, eq, ek, ev = _get_qkv_projections(attn, hidden_states, encoder_hidden_states)
-        q = q.unflatten(-1, (attn.heads, -1)); k = k.unflatten(-1, (attn.heads, -1)); v = v.unflatten(-1, (attn.heads, -1))
-        q = attn.norm_q(q); k = attn.norm_k(k)
-        if encoder_hidden_states is not None:
-            eq = eq.unflatten(-1, (attn.heads, -1)); ek = ek.unflatten(-1, (attn.heads, -1)); ev = ev.unflatten(-1, (attn.heads, -1))
-            eq = attn.norm_added_q(eq); ek = attn.norm_added_k(ek)
-            q = torch.cat([eq, q], dim=1); k = torch.cat([ek, k], dim=1); v = torch.cat([ev, v], dim=1)
-        q_r = apply_rotary_emb(q, image_rotary_emb, sequence_dim=1).transpose(1, 2)   # (B,h,S,D)
-        k_r = apply_rotary_emb(k, image_rotary_emb, sequence_dim=1).transpose(1, 2)
-        v_t = v.transpose(1, 2)
-        B, h, S, D = k_r.shape
-        if B > 1:                                          # own K/V + a SAMPLED pool of all frames' tokens
-            pool_k = k_r.permute(1, 0, 2, 3).reshape(h, B * S, D)
-            pool_v = v_t.permute(1, 0, 2, 3).reshape(h, B * S, D)
-            if share_ratio < 1.0:                          # sample a fraction (keeps scene diversity)
-                n = max(1, int(share_ratio * B * S))
-                idx = torch.randperm(B * S, device=pool_k.device)[:n]
-                pool_k = pool_k[:, idx]; pool_v = pool_v[:, idx]
-            pk = pool_k.unsqueeze(0).expand(B, h, pool_k.shape[1], D)
-            pv = pool_v.unsqueeze(0).expand(B, h, pool_v.shape[1], D)
-            out = F.scaled_dot_product_attention(q_r, torch.cat([k_r, pk], 2), torch.cat([v_t, pv], 2))
-        else:
-            out = F.scaled_dot_product_attention(q_r, k_r, v_t)
-        hidden_states = out.transpose(1, 2).flatten(2, 3).to(q.dtype)
-        if encoder_hidden_states is not None:
-            n_txt = encoder_hidden_states.shape[1]
-            enc, hidden_states = hidden_states.split_with_sizes([n_txt, hidden_states.shape[1] - n_txt], dim=1)
-            hidden_states = attn.to_out[0](hidden_states.contiguous()); hidden_states = attn.to_out[1](hidden_states)
-            enc = attn.to_add_out(enc.contiguous())
-            return hidden_states, enc
-        return hidden_states
-
-
-def _install(transformer, proc_cls):
-    orig = {}
-    for name, mod in transformer.named_modules():
-        if name.endswith(".attn") and hasattr(mod, "processor"):
-            orig[name] = mod.processor
-            mod.processor = proc_cls()
-    return orig
-
-
-def _restore(transformer, orig):
-    for name, mod in transformer.named_modules():
-        if name in orig:
-            mod.processor = orig[name]
 
 
 def _comic(panels, captions, cols=2):
@@ -196,21 +142,35 @@ class StoryDiffusionFluxBlock(ModularPipelineBlocks):
         timesteps, _ = retrieve_timesteps(scheduler, nsteps, device, sigmas=sigmas, mu=mu)
 
         start_step = int(float(bs.share_start_frac) * len(timesteps))
-        orig = _install(tr, ConsistentSelfAttnProcessor)
-        try:
+        share_ratio = float(bs.share_ratio)
+
+        def _share(q, k, v, n_txt, attn, pl):
+            # Consistent Self-Attention: each frame also attends to a pool of ALL frames' K/V (post-rope).
+            B, S, h, D = k.shape
+            if B <= 1:
+                return q, k, v
+            pool_k = k.reshape(B * S, h, D); pool_v = v.reshape(B * S, h, D)
+            if share_ratio < 1.0:                          # sample a fraction (keeps scene diversity)
+                n = max(1, int(share_ratio * B * S))
+                idx = torch.randperm(B * S, device=k.device)[:n]
+                pool_k = pool_k[idx]; pool_v = pool_v[idx]
+            pk = pool_k.unsqueeze(0).expand(B, pool_k.shape[0], h, D)
+            pv = pool_v.unsqueeze(0).expand(B, pool_v.shape[0], h, D)
+            return q, torch.cat([k, pk], dim=1), torch.cat([v, pv], dim=1)
+
+        with flux_intervention(tr):                        # payload only after start_step; else stock
             for i, t in enumerate(timesteps):
-                jkw = {"story_share": bool(bs.story_share) and i >= start_step, "share_ratio": float(bs.share_ratio)}
+                active = bool(bs.story_share) and i >= start_step
+                jkw = {PAYLOAD_KEY: {"post_rope": _share}} if active else None
                 noise_pred = tr(hidden_states=latents, timestep=t.expand(batch).to(dtype) / 1000, guidance=guidance,
                                 pooled_projections=pooled, encoder_hidden_states=prompt_embeds, txt_ids=text_ids,
                                 img_ids=img_ids, joint_attention_kwargs=jkw, return_dict=False)[0]
                 latents = scheduler.step(noise_pred, t, latents, return_dict=False)[0]
-            lat = FluxPipeline._unpack_latents(latents, H, W, vsf)
-            lat = (lat / vae.config.scaling_factor) + vae.config.shift_factor
-            decoded = vae.decode(lat.to(vae.dtype), return_dict=False)[0]
-            from diffusers.image_processor import VaeImageProcessor
-            panels = VaeImageProcessor(vae_scale_factor=vsf).postprocess(decoded, output_type="pil")
-        finally:
-            _restore(tr, orig)
+        lat = FluxPipeline._unpack_latents(latents, H, W, vsf)
+        lat = (lat / vae.config.scaling_factor) + vae.config.shift_factor
+        decoded = vae.decode(lat.to(vae.dtype), return_dict=False)[0]
+        from diffusers.image_processor import VaeImageProcessor
+        panels = VaeImageProcessor(vae_scale_factor=vsf).postprocess(decoded, output_type="pil")
 
         if bs.comic_layout:
             sheet = _comic(panels, captions, cols=int(bs.comic_cols))
