@@ -44,96 +44,23 @@
 
 import numpy as np
 import torch
-import torch.nn.functional as F
+import torch.nn.functional as F   # _cutout uses F.max_pool2d
 
-from diffusers.models.embeddings import apply_rotary_emb
-from diffusers.models.transformers.transformer_flux import FluxAttnProcessor, _get_qkv_projections
 from diffusers.utils.torch_utils import randn_tensor
 from diffusers import FluxTransformer2DModel, AutoencoderKL, FlowMatchEulerDiscreteScheduler
 from diffusers.pipelines.flux.pipeline_flux import FluxPipeline, retrieve_timesteps, calculate_shift
 from diffusers.modular_pipelines import ModularPipelineBlocks, ComponentSpec, InputParam, OutputParam
 from transformers import CLIPTextModel, CLIPTokenizer, T5EncoderModel, T5TokenizerFast
 
+# Shared FLUX-modular attention primitive (vendored flat beside this file for trust_remote_code).
+# Stitch uses TWO ops: `bias` (per-pass box mask) + `weights` (raw head attention for the cutout).
+from .flux_modular import flux_intervention, PAYLOAD_KEY
+
 _FLUX = "black-forest-labs/FLUX.1-dev"
 
 _NEG = -1e4                  # additive -inf stand-in that survives bf16 (a true -inf turns every
                              # fully-masked row into NaN after softmax; text keys keep rows non-empty)
 _DEFAULT_CUTOUT_HEAD = (14, 20)   # paper Appendix F, FLUX.1-dev
-
-
-class StitchProcessor(FluxAttnProcessor):
-    """FLUX joint attention with Stitch Region Binding, driven by
-    `joint_attention_kwargs['stitch']` (None -> stock Flux attention, bit-exact no-op).
-
-    payload (one dict per transformer call, shared by every attention module in it):
-      bias        Tensor [1,1,n,n] — additive box bias for THIS pass (None -> stock attention)
-      capture_id  id() of the attn module to record from, or None
-      head        head index to record when this module is the capture target
-      store       dict; on capture, store["a_txt_img"] = the raw text->image attention of `head`
-
-    The joint sequence is [text (n_txt), image (n_img)] in BOTH stream layouts: the double blocks get
-    two streams and concatenate them in that order, the single blocks receive them pre-concatenated
-    with encoder_hidden_states=None. The image block therefore always starts at n_txt on the joint
-    axis, and the box bias is built on that axis by the caller.
-    """
-
-    def __call__(self, attn, hidden_states, encoder_hidden_states=None,
-                 attention_mask=None, image_rotary_emb=None, stitch=None):
-        if stitch is None or stitch["bias"] is None:
-            return super().__call__(attn, hidden_states, encoder_hidden_states, attention_mask,
-                                    image_rotary_emb)
-        query, key, value, e_q, e_k, e_v = _get_qkv_projections(attn, hidden_states, encoder_hidden_states)
-        query = attn.norm_q(query.unflatten(-1, (attn.heads, -1)))
-        key = attn.norm_k(key.unflatten(-1, (attn.heads, -1)))
-        value = value.unflatten(-1, (attn.heads, -1))
-        if encoder_hidden_states is not None:
-            e_q = attn.norm_added_q(e_q.unflatten(-1, (attn.heads, -1)))
-            e_k = attn.norm_added_k(e_k.unflatten(-1, (attn.heads, -1)))
-            e_v = e_v.unflatten(-1, (attn.heads, -1))
-            query = torch.cat([e_q, query], dim=1)
-            key = torch.cat([e_k, key], dim=1)
-            value = torch.cat([e_v, value], dim=1)
-        if image_rotary_emb is not None:
-            query = apply_rotary_emb(query, image_rotary_emb, sequence_dim=1)
-            key = apply_rotary_emb(key, image_rotary_emb, sequence_dim=1)
-
-        if stitch["capture_id"] is not None and id(attn) == stitch["capture_id"]:
-            # Raw text->image attention of one head, BEFORE the box bias is applied — the weights the
-            # cutout threshold runs on, exactly as this block computed them. Rows = text queries,
-            # columns = image keys, both on the joint [text, image] axis.
-            qh = query[:, :, stitch["head"], :].float()
-            kh = key[:, :, stitch["head"], :].float()
-            a = torch.softmax(qh @ kh.transpose(-1, -2) * (qh.shape[-1] ** -0.5), dim=-1)
-            stitch["store"]["a_txt_img"] = a[:, :stitch["n_txt"], stitch["n_txt"]:].detach()
-
-        hidden_states = F.scaled_dot_product_attention(
-            query.transpose(1, 2), key.transpose(1, 2), value.transpose(1, 2),
-            attn_mask=stitch["bias"].to(device=query.device, dtype=query.dtype))
-        hidden_states = hidden_states.transpose(1, 2).flatten(2, 3).to(query.dtype)
-        if encoder_hidden_states is not None:
-            n_txt = encoder_hidden_states.shape[1]
-            encoder_hidden_states, hidden_states = hidden_states.split_with_sizes(
-                [n_txt, hidden_states.shape[1] - n_txt], dim=1)
-            hidden_states = attn.to_out[0](hidden_states.contiguous())
-            hidden_states = attn.to_out[1](hidden_states)
-            encoder_hidden_states = attn.to_add_out(encoder_hidden_states.contiguous())
-            return hidden_states, encoder_hidden_states
-        return hidden_states       # single blocks: out_dim=None -> to_out is Identity
-
-
-def _install_attn(transformer, proc):
-    orig = {}
-    for name, mod in transformer.named_modules():
-        if name.endswith(".attn") and hasattr(mod, "processor"):
-            orig[name] = mod.processor
-            mod.processor = proc
-    return orig
-
-
-def _restore_attn(transformer, orig):
-    for name, mod in transformer.named_modules():
-        if name in orig:
-            mod.processor = orig[name]
 
 
 def _region_bias(inside, n_txt, n_img, dtype, device):
@@ -385,14 +312,24 @@ class StitchBlock(ModularPipelineBlocks):
         S = max(1, S)
         traj = {"bg": base.clone()}
         fg_tokens = {}                       # region -> (foreground mask, kept latent tokens)
-        orig = _install_attn(tr, StitchProcessor())
-        try:
-            store = {}
+        store = {}
 
-            def _jak(bias, capture=False):
-                return {"stitch": {"bias": bias, "capture_id": capture_id if capture else None,
-                                   "head": cut_head, "store": store, "n_txt": L}}
+        def _jak(bias, capture=False):
+            # bias op: this pass's precomputed (1,1,n,n) box mask, returned for every block.
+            pl = {"bias": (lambda q, k, n_txt, attn, pl_: bias), "n_txt": L}
+            if capture and capture_id is not None:
+                # weights op (side-channel): raw UNbiased text->image attention of `cut_head` at the one
+                # capture block, stored for the cutout. Output stays on the box-biased dispatch path.
+                def _cap(q, k, n_txt, attn, pl_, _h=cut_head):
+                    if id(attn) != capture_id:
+                        return
+                    qh = q[:, :, _h, :].float(); kh = k[:, :, _h, :].float()
+                    a = torch.softmax(qh @ kh.transpose(-1, -2) * (qh.shape[-1] ** -0.5), dim=-1)
+                    store["a_txt_img"] = a[:, :n_txt, n_txt:].detach()
+                pl["weights"] = _cap
+            return {PAYLOAD_KEY: pl}
 
+        with flux_intervention(tr):           # payload drives it; bg/refine pass None -> stock (bit-exact)
             last = S - 1                      # tau=S-1 is the last bound step: capture its attention
             for k in range(len(regions)):
                 traj[k] = base.clone()
@@ -415,9 +352,10 @@ class StitchBlock(ModularPipelineBlocks):
                     a = store.pop("a_txt_img", None)
                     if a is None:
                         if capture_id is not None:
-                            print(f"[stitch] cutout head ({cut_block},{cut_head}) produced no "
-                                  f"attention for region {k}; using the whole box as foreground.")
-                        fg_tokens[k] = (box_masks[k], traj[k])   # degenerate: box-wide foreground
+                            print(f"[stitch] cutout head ({cut_block},{cut_head}) produced no attention "
+                                  f"for region {k}; using the whole box as foreground.")
+                        # box-wide fallback: keep only the box tokens (fixed: was the full latent)
+                        fg_tokens[k] = (box_masks[k], traj[k][:, box_masks[k], :])
                         continue
                     fg = self._cutout(a, reg_len[k], box_masks[k], gh, gw, eta, kappa)
                     fg_tokens[k] = (fg, traj[k][:, fg, :])       # the object's foreground tokens
@@ -433,8 +371,6 @@ class StitchBlock(ModularPipelineBlocks):
             latents = self._denoise(tr, scheduler, composite, timesteps, S, guidance, global_pooled,
                                     global_emb, _txt_ids(global_emb.shape[1]), img_ids,
                                     lambda i: None, dtype)
-        finally:
-            _restore_attn(tr, orig)
 
         return self._decode(components, state, bs, latents, H, W, vsf, vae)
 

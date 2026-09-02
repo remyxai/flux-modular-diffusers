@@ -43,6 +43,15 @@ def test_edge_blocks():
     assert len(keys) == 8
 
 
+def test_payload_key_is_named_param():
+    # diffusers' FluxAttention.forward filters joint_attention_kwargs to keys that are EXPLICIT named
+    # params of processor.__call__; a **kwargs payload key is silently dropped. So PAYLOAD_KEY MUST be
+    # a named parameter of FluxIntervention.__call__ or every op becomes a no-op.
+    import inspect
+    params = inspect.signature(FluxIntervention.__call__).parameters
+    assert PAYLOAD_KEY in params, f"'{PAYLOAD_KEY}' must be a named __call__ param (diffusers drops **kwargs keys)"
+
+
 def test_intervention_is_flux_processor_subclass():
     # subclasses diffusers' FluxAttnProcessor so no-payload calls delegate to the stock (bit-exact) path
     from diffusers.models.transformers.transformer_flux import FluxAttnProcessor
