@@ -133,19 +133,34 @@ def flux_intervention(transformer, block_keys=None):
 
 
 # ---- ready-made ops (blocks may also pass their own callables) -----------------------------------
-def op_append(bank):
+def edge_attn_ids(transformer, n=2):
+    """``id()``s of the attn modules at the first-``n``/last-``n`` blocks of both streams — for op
+    self-gating when FluxIntervention is installed on ALL blocks (install-all avoids the
+    'not expected by FluxAttnProcessor' warning that a partial install triggers on stock blocks)."""
+    nD, nS = len(transformer.transformer_blocks), len(transformer.single_transformer_blocks)
+    idxD = list(dict.fromkeys(list(range(n)) + list(range(nD - n, nD))))
+    idxS = list(dict.fromkeys(list(range(n)) + list(range(nS - n, nS))))
+    return {id(transformer.transformer_blocks[i].attn) for i in idxD} | \
+           {id(transformer.single_transformer_blocks[i].attn) for i in idxS}
+
+
+def op_append(bank, ids=None):
     """post_rope: concat this block's banked (position-baked) donor image K/V — appearance/style share.
-    Keyed on ``id(attn)`` so one shared payload serves every installed block (kv-edit's convention)."""
+    Keyed on ``id(attn)``; if ``ids`` is given, only fires for those blocks (install-all + self-gate)."""
     def _fn(q, k, v, n_txt, attn, pl):
-        rk, rv = bank[id(attn)]
-        return q, torch.cat([k, rk.to(k)], 1), torch.cat([v, rv.to(v)], 1)
+        if (ids is None or id(attn) in ids) and id(attn) in bank:
+            rk, rv = bank[id(attn)]
+            return q, torch.cat([k, rk.to(k)], 1), torch.cat([v, rv.to(v)], 1)
+        return q, k, v
     return _fn
 
 
-def op_capture_image_kv(bank, n_img):
-    """post_rope: record this block's trailing ``n_img`` (image) K/V into ``bank[id(attn)]`` (donor pass)."""
+def op_capture_image_kv(bank, n_img, ids=None):
+    """post_rope: record this block's trailing ``n_img`` (image) K/V into ``bank[id(attn)]`` (donor pass);
+    only for blocks in ``ids`` if given."""
     def _fn(q, k, v, n_txt, attn, pl):
-        bank[id(attn)] = (k[:, -n_img:].detach(), v[:, -n_img:].detach())
+        if ids is None or id(attn) in ids:
+            bank[id(attn)] = (k[:, -n_img:].detach(), v[:, -n_img:].detach())
         return q, k, v
     return _fn
 

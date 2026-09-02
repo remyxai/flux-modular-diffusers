@@ -36,7 +36,7 @@ from .flux_modular import (
     prepare_latent_image_ids,
     calculate_shift,
     flux_intervention,
-    edge_blocks,
+    edge_attn_ids,
     op_append,
     op_capture_image_kv,
     PAYLOAD_KEY,
@@ -212,10 +212,13 @@ class AppearanceTransferBlock(ModularPipelineBlocks):
         # Install one FluxIntervention on the edge blocks for the whole call; drive per-pass via the
         # joint_attention_kwargs payload. No payload -> stock (bit-exact), so inversion is unaffected.
         bank = {}
-        cap_pl = {PAYLOAD_KEY: {"post_rope": op_capture_image_kv(bank, n_img)}}   # record ref image K/V
-        inj_pl = {PAYLOAD_KEY: {"post_rope": op_append(bank)}}                    # append it onto source K/V
+        # install on ALL blocks (avoids the stock-processor "flux_mod ignored" warning) and self-gate
+        # the capture/append ops to the edge blocks (first-2 + last-2 of each stream).
+        edge_ids = edge_attn_ids(c.transformer, n=2)
+        cap_pl = {PAYLOAD_KEY: {"post_rope": op_capture_image_kv(bank, n_img, ids=edge_ids)}}  # record ref image K/V
+        inj_pl = {PAYLOAD_KEY: {"post_rope": op_append(bank, ids=edge_ids)}}                   # append onto source K/V
 
-        with flux_intervention(c.transformer, edge_blocks(c.transformer, n=2)):
+        with flux_intervention(c.transformer):
             # (1) capture the reference's image-token K/V at a structured (low-sigma) state
             xref = self._encode_image(c, bs.reference_image, H, W, tdev)
             _ = vel(xref, sigs[-2], bs.invert_guidance, prompt_embeds, text_ids, ctrl_ref, jkw=cap_pl)
