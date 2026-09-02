@@ -35,8 +35,11 @@ from .flux_modular import (
     unpack_latents,
     prepare_latent_image_ids,
     calculate_shift,
-    attention_share,
+    flux_intervention,
     edge_blocks,
+    op_append,
+    op_capture_image_kv,
+    PAYLOAD_KEY,
 )
 
 
@@ -198,37 +201,41 @@ class AppearanceTransferBlock(ModularPipelineBlocks):
         sigs = [float(s) for s in c.scheduler.sigmas.cpu().numpy()]   # descending, ends 0.0
         N = len(sigs) - 1
 
-        def vel(latent, sigma, gval, enc, tids, ctrl):
+        def vel(latent, sigma, gval, enc, tids, ctrl, jkw=None):
             hs = torch.cat([latent, ctrl], dim=2)
             ts = torch.full((1,), float(sigma), device=tdev, dtype=dtype)
             gd = torch.full((1,), float(gval), device=tdev, dtype=dtype)
             return c.transformer(hidden_states=hs, timestep=ts, guidance=gd, pooled_projections=pooled,
-                                 encoder_hidden_states=enc, txt_ids=tids, img_ids=img_ids, return_dict=False)[0]
+                                 encoder_hidden_states=enc, txt_ids=tids, img_ids=img_ids,
+                                 joint_attention_kwargs=jkw, return_dict=False)[0]
 
-        blocks = edge_blocks(c.transformer, n=2)   # first-2 + last-2 of both streams
+        # Install one FluxIntervention on the edge blocks for the whole call; drive per-pass via the
+        # joint_attention_kwargs payload. No payload -> stock (bit-exact), so inversion is unaffected.
+        bank = {}
+        cap_pl = {PAYLOAD_KEY: {"post_rope": op_capture_image_kv(bank, n_img)}}   # record ref image K/V
+        inj_pl = {PAYLOAD_KEY: {"post_rope": op_append(bank)}}                    # append it onto source K/V
 
-        # (1) capture the reference's image-token K/V at a structured (low-sigma) state
-        xref = self._encode_image(c, bs.reference_image, H, W, tdev)
-        with attention_share(c.transformer, blocks, "capture", n_img=n_img) as bank:
-            _ = vel(xref, sigs[-2], bs.invert_guidance, prompt_embeds, text_ids, ctrl_ref)
+        with flux_intervention(c.transformer, edge_blocks(c.transformer, n=2)):
+            # (1) capture the reference's image-token K/V at a structured (low-sigma) state
+            xref = self._encode_image(c, bs.reference_image, H, W, tdev)
+            _ = vel(xref, sigs[-2], bs.invert_guidance, prompt_embeds, text_ids, ctrl_ref, jkw=cap_pl)
 
-        # (2) invert the source (RK2 ascending) into a full trajectory (stock attention)
-        x0 = self._encode_image(c, bs.source_image, H, W, tdev)
-        asc = sigs[::-1]
-        traj = [x0.clone()]
-        x = x0.clone()
-        for i in range(N):
-            s, s1 = asc[i], asc[i + 1]
-            dt = s1 - s
-            v1 = vel(x, s, bs.invert_guidance, prompt_embeds, text_ids, ctrl_src)
-            v2 = vel(x + 0.5 * dt * v1, s + 0.5 * dt, bs.invert_guidance, prompt_embeds, text_ids, ctrl_src)
-            x = x + dt * v2
-            traj.append(x.clone())
+            # (2) invert the source (RK2 ascending) into a full trajectory (no payload -> stock attention)
+            x0 = self._encode_image(c, bs.source_image, H, W, tdev)
+            asc = sigs[::-1]
+            traj = [x0.clone()]
+            x = x0.clone()
+            for i in range(N):
+                s, s1 = asc[i], asc[i + 1]
+                dt = s1 - s
+                v1 = vel(x, s, bs.invert_guidance, prompt_embeds, text_ids, ctrl_src)
+                v2 = vel(x + 0.5 * dt * v1, s + 0.5 * dt, bs.invert_guidance, prompt_embeds, text_ids, ctrl_src)
+                x = x + dt * v2
+                traj.append(x.clone())
 
-        # (3) generate: replay to blend_k (structure lock), then free RK2 + Redux (+ K/V injection)
-        k_idx = int(float(bs.blend_k) * N)
-
-        def _generate():
+            # (3) generate: replay to blend_k (structure lock), then free RK2 + Redux (+ K/V append)
+            k_idx = int(float(bs.blend_k) * N)
+            gpl = inj_pl if bs.use_kv_injection else None
             x = traj[N].clone()
             for i in range(N):
                 if i < k_idx:
@@ -236,16 +243,9 @@ class AppearanceTransferBlock(ModularPipelineBlocks):
                     continue
                 s, s1 = sigs[i], sigs[i + 1]
                 dt = s1 - s
-                v1 = vel(x, s, bs.guidance_scale, enc_gen, tids_gen, ctrl_src)
-                v2 = vel(x + 0.5 * dt * v1, s + 0.5 * dt, bs.guidance_scale, enc_gen, tids_gen, ctrl_src)
+                v1 = vel(x, s, bs.guidance_scale, enc_gen, tids_gen, ctrl_src, jkw=gpl)
+                v2 = vel(x + 0.5 * dt * v1, s + 0.5 * dt, bs.guidance_scale, enc_gen, tids_gen, ctrl_src, jkw=gpl)
                 x = x + dt * v2
-            return x
-
-        if bs.use_kv_injection:
-            with attention_share(c.transformer, blocks, "inject", bank=bank):
-                x = _generate()
-        else:
-            x = _generate()
 
         bs.images = self._decode(c, x, H, W, bs.output_type)
         self.set_block_state(state, bs)

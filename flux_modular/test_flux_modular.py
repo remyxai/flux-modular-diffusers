@@ -8,7 +8,8 @@ import torch
 
 from flux_modular import (
     pack_latents, unpack_latents, prepare_latent_image_ids, calculate_shift,
-    InterventionAttnProcessor, edge_blocks,
+    FluxIntervention, flux_intervention, edge_blocks, PAYLOAD_KEY,
+    op_append, op_capture_image_kv, op_substitute, op_blend,
 )
 
 
@@ -42,9 +43,18 @@ def test_edge_blocks():
     assert len(keys) == 8
 
 
-def test_processor_hooks_optional():
-    p = InterventionAttnProcessor()          # no hooks -> pure pass-through wiring
-    assert p.pre_rope is None and p.post_rope is None and p.attn_bias is None and p.tap is None
+def test_intervention_is_flux_processor_subclass():
+    # subclasses diffusers' FluxAttnProcessor so no-payload calls delegate to the stock (bit-exact) path
+    from diffusers.models.transformers.transformer_flux import FluxAttnProcessor
+    assert issubclass(FluxIntervention, FluxAttnProcessor)
+    assert PAYLOAD_KEY == "flux_mod"
+
+
+def test_op_builders_return_callables():
+    assert callable(op_append({}))
+    assert callable(op_capture_image_kv({}, 4096))
+    assert callable(op_substitute(None, None, None))
+    assert callable(op_blend(None, None, None, 0.5))
 
 
 if __name__ == "__main__":
