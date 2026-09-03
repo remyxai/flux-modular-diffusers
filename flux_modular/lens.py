@@ -323,44 +323,82 @@ class FluxLens:
         sched.set_timesteps(sigmas=sigmas, mu=mu, device=self.device)
         timesteps = sched.timesteps
 
+        op_kind = (recipe.get("ops") or [{}])[0].get("op", "substitute")
         store = {}
 
-        def _op(mode):
-            def _fn(q, k, v, off, attn, pl):
-                idx = bg_idx + off
-                key = (id(attn), pl["step"])
-                if idx.numel() == 0:
-                    return q, k, v
-                if mode == "capture":
-                    store[key] = (k[:, idx].detach().to("cpu"), v[:, idx].detach().to("cpu"))
-                elif key in store:
-                    sk, sv = store[key]
-                    k = k.clone(); v = v.clone()
-                    k[:, idx] = sk.to(k); v[:, idx] = sv.to(v)
-                return q, k, v
-            return _fn
-
-        def _vel(lat, pe, pooled, tids, gd, t, op, n_txt, step):
-            jkw = None if op is None else {PAYLOAD_KEY: {"pre_rope": op, "n_txt": n_txt, "step": step}}
+        def _vel(lat, pe, pooled, tids, gd, t, op, n_txt, step, struct=True):
+            jkw = None if op is None else {PAYLOAD_KEY: {"pre_rope": op, "n_txt": n_txt, "step": step, "struct": struct}}
             return self.tr(hidden_states=lat, timestep=(t.expand(1) / 1000).to(self.dtype), guidance=gd,
                            pooled_projections=pooled, encoder_hidden_states=pe, txt_ids=tids, img_ids=img_ids,
                            joint_attention_kwargs=jkw, return_dict=False)[0]
 
         active = bg_idx.numel() > 0
-        cap = _op("capture") if active else None
-        sub = _op("substitute") if active else None
-        with flux_intervention(self.tr):
-            # RF inversion (reverse) under the source prompt, caching bg K/V per step
-            for i in range(len(timesteps) - 1, -1, -1):
-                t = timesteps[i]
-                sched._init_step_index(t)
-                s_i = sched.sigmas[sched.step_index]; s_ip1 = sched.sigmas[sched.step_index + 1]
-                v = _vel(latents, src_pe, src_pooled, src_tids, src_g, t, cap, src_pe.shape[1], i)
-                latents = (latents.to(torch.float32) + (s_i - s_ip1) * v.to(torch.float32)).to(self.dtype)
-            # edit denoise (forward) under the target prompt, substituting bg K/V per step
-            for i, t in enumerate(timesteps):
-                v = _vel(latents, tar_pe, tar_pooled, tar_tids, tar_g, t, sub, tar_pe.shape[1], i)
-                latents = sched.step(v, t, latents, return_dict=False)[0]
+        n_struct = int(float(P.get("consistency_strength", 0.3)) * self.steps)
+
+        if op_kind == "blend":
+            # consistedit: fuse the whole vision slice with a per-token keep-weight + a structure window.
+            single_ids = {id(b.attn) for b in self.tr.single_transformer_blocks}
+            keep_w = bg.to(self.dtype).view(1, -1, 1, 1)   # 1 = keep (source), 0 = edit (target)
+
+            def _cap(q, k, v, off, attn, pl):
+                if id(attn) in single_ids:
+                    store[(id(attn), pl["step"])] = (q.detach().to("cpu"), k.detach().to("cpu"), v.detach().to("cpu"))
+                return q, k, v
+
+            def _fuse(q, k, v, off, attn, pl):
+                key = (id(attn), pl["step"])
+                if id(attn) in single_ids and key in store:
+                    qs, ks, vs = (t.to(q) for t in store[key])
+                    wqk = torch.ones_like(keep_w) if pl["struct"] else keep_w
+                    q = q.clone(); k = k.clone(); v = v.clone()
+                    q[:, off:] = torch.lerp(q[:, off:], qs[:, off:], wqk)
+                    k[:, off:] = torch.lerp(k[:, off:], ks[:, off:], wqk)
+                    v[:, off:] = torch.lerp(v[:, off:], vs[:, off:], keep_w)
+                return q, k, v
+
+            cap = _cap if active else None
+            with flux_intervention(self.tr):
+                lat = [None] * (self.steps + 1); lat[self.steps] = latents.clone()
+                for i in range(len(timesteps) - 1, -1, -1):
+                    t = timesteps[i]; sched._init_step_index(t)
+                    s_i, s_ip1 = sched.sigmas[sched.step_index], sched.sigmas[sched.step_index + 1]
+                    v = _vel(lat[i + 1], src_pe, src_pooled, src_tids, src_g, t, cap, src_pe.shape[1], i)
+                    lat[i] = (lat[i + 1].to(torch.float32) + (s_i - s_ip1) * v.to(torch.float32)).to(self.dtype)
+                latents = lat[0].clone()
+                for i, t in enumerate(timesteps):
+                    sched._init_step_index(t)
+                    _vel(lat[i + 1], src_pe, src_pooled, src_tids, src_g, t, cap, src_pe.shape[1], i)   # re-capture step i
+                    fuse = (lambda *a: _fuse(*a)) if active else None
+                    v = _vel(latents, tar_pe, tar_pooled, tar_tids, tar_g, t, fuse, tar_pe.shape[1], i, struct=i < n_struct)
+                    latents = sched.step(v, t, latents, return_dict=False)[0]
+                    store.clear()
+        else:
+            # kv-edit: substitute cached background K/V at the kept tokens.
+            def _op(mode):
+                def _fn(q, k, v, off, attn, pl):
+                    idx = bg_idx + off
+                    key = (id(attn), pl["step"])
+                    if idx.numel() == 0:
+                        return q, k, v
+                    if mode == "capture":
+                        store[key] = (k[:, idx].detach().to("cpu"), v[:, idx].detach().to("cpu"))
+                    elif key in store:
+                        sk, sv = store[key]
+                        k = k.clone(); v = v.clone()
+                        k[:, idx] = sk.to(k); v[:, idx] = sv.to(v)
+                    return q, k, v
+                return _fn
+            cap = _op("capture") if active else None
+            sub = _op("substitute") if active else None
+            with flux_intervention(self.tr):
+                for i in range(len(timesteps) - 1, -1, -1):
+                    t = timesteps[i]; sched._init_step_index(t)
+                    s_i, s_ip1 = sched.sigmas[sched.step_index], sched.sigmas[sched.step_index + 1]
+                    v = _vel(latents, src_pe, src_pooled, src_tids, src_g, t, cap, src_pe.shape[1], i)
+                    latents = (latents.to(torch.float32) + (s_i - s_ip1) * v.to(torch.float32)).to(self.dtype)
+                for i, t in enumerate(timesteps):
+                    v = _vel(latents, tar_pe, tar_pooled, tar_tids, tar_g, t, sub, tar_pe.shape[1], i)
+                    latents = sched.step(v, t, latents, return_dict=False)[0]
 
         z = unpack_latents(latents, self.H, self.W, 8).to(self.vae.device)
         z = z / self.vae.config.scaling_factor + self.vae.config.shift_factor

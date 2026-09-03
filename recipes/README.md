@@ -68,14 +68,14 @@ loop isn't fake-shipped as a recipe; it's mapped here with the extension it need
 | regional | regional · `bias` | ✅ recipe (expressible) | — |
 | story-diffusion | **batch** · `share` | ✅ recipe (expressible) | returns a list of frames |
 | kv-edit | **edit** · `substitute` | ✅ recipe (expressible) | RF-invert → substitute bg K/V via the shared pre-rope hook |
-| consistedit | edit · `blend` | ⏳ | the **edit** loop exists; needs a mask-weighted vision-token **blend** with a structure window |
-| stitch | regional · `bias` + cutout | ⏳ | a cutout/composite **post-op** after the region-bind bias |
+| consistedit | **edit** · `blend` | ✅ recipe (expressible) | RF-invert → mask-weighted vision-token blend with a structure window |
+| stitch | regional · `bias` + cutout | ⏳ | a cutout/composite **post-op** after the region-bind bias (needs a non-attention step) |
 | flowedit | — (custom ODE) | ✗ | inversion-free velocity trick, **not** an attention op — stays a standalone pipeline |
 
-The ⏳ ops already exist in [`flux_modular/attention.py`](../flux_modular/attention.py); consistedit is a small add
-on the **edit** path (swap `substitute` for a windowed `blend`), stitch is the **regional** path plus a post-op.
-`flowedit` is not recipe-shaped and remains standalone. **Editing/consistency recipes are `expressible` — faithful
-ports, but GPU-validate via `explore.ipynb` before trusting them.**
+7 recipes across 4 run paths. The two remaining are honestly *not* pure-attention recipes: `stitch` needs a
+cutout/composite **post-op** on top of the region-bind bias, and `flowedit` is a custom velocity ODE, not an
+attention payload at all. **Editing/consistency recipes are `expressible` — faithful ports, but GPU-validate via
+`explore.ipynb` before trusting them.**
 
 The non-attention pipelines (`hrdit`, `dype`, `pulid`, `catvton`, `panorama`) use pos-embed swaps / LoRA compose /
 custom loops, not the attention payload — they aren't recipe-shaped and remain standalone.
