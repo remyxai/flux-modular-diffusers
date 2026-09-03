@@ -36,7 +36,8 @@ hand-written denoise loop:
    inputs)` drives every recipe over four run-loops (default / regional / batch / edit). It's adapter-driven, so
    the *same* code serves exploration and shipping.
 4. **Run · sweep · generate.** [`FluxLens`](flux_modular/lens.py) wraps a `FluxPipeline` for exploration
-   ([`notebooks/explore.ipynb`](notebooks/explore.ipynb): run any recipe, sweep configurations, compare);
+   (**start here:** [`notebooks/papers_as_recipes.ipynb`](notebooks/papers_as_recipes.ipynb) runs published methods
+   as configs + shows the codegen CLI; [`notebooks/explore.ipynb`](notebooks/explore.ipynb): sweep + compare);
    [`flux_modular/codegen.py`](flux_modular/codegen.py) (`scripts/gen_pipeline.py`) turns a validated recipe into
    a standalone `pipelines/<name>/` — `block.py` + configs + the vendored flat primitive — with **no
    re-implemented denoise loop**.
