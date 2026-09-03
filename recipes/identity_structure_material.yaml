@@ -13,7 +13,7 @@ ops:
   - {op: inject_identity}
   - {op: replace_q, tokens: image}
 params: {id_weight: 1.0, S: 0.5, schedule: cosine, guidance: 4.0}
-validated: expressible   # three-way with K/V-share material (identity+structure validated; kv-appearance validated) — validate the composition
+validated: expressible   # A100: SWAMPS at default (guidance 4.0) — K/V material takes over into a full-frame texture, no face. appearance_kv works STANDALONE at guidance 6.5; the three-way's low guidance (PuLID's 4.0) weakens prompt adherence so material dominates. Re-spiking guidance / kv-append strength.
 license: open-weight — PuLID + FLUX.1-dev (non-commercial)
 pipeline: null
 paper: composition of 2404.16022 + 2511.05219 + 2603.26767
