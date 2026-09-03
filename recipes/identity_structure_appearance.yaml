@@ -2,7 +2,7 @@ name: identity_structure_appearance
 description: >-
   Three-way in one denoise — face-lock (PuLID identity) + reference structure (freecontrol Q-replace, soft-scheduled)
   + reference appearance (Redux). Declarative because residual + multi-donor are first-class. OPEN-WEIGHT (PuLID).
-  Interference (identity vs structure on the late blocks) is the open question — sweep id_weight x S x redux_scale.
+  VALIDATED with mask-weighted Redux: id_weight=1, S=0.5, redux_scale~0.3 + appearance_mask -> identity+structure+subtle material coexist. Whole-image Redux or redux>=0.6 swamps the face; pass an appearance_mask (material region).
 run: identity_composed
 requires: [pulid, rope, single_stream, redux]
 inputs: [id_image, ref_structure, ref_appearance, appearance_mask, prompt]   # appearance_mask optional: foreground = material region
@@ -14,7 +14,7 @@ ops:
   - {op: replace_q, tokens: image}   # structure (late single blocks, soft schedule)
   # appearance = the redux condition above
 params: {id_weight: 1.0, S: 0.5, schedule: cosine, redux_scale: 0.3, guidance: 4.0}
-validated: expressible   # A100: identity+structure HOLD (ArcFace 0.76 + depth 0.91), but whole-image Redux appearance SWAMPS the portrait even at scale 0.3 (coffee-cup, no face) — the three-way needs MASK-WEIGHTED Redux (material, not shape). Use identity_structure until then.
+validated: spike   # A100: with MASK-WEIGHTED Redux (appearance_mask) at redux_scale=0.3, all three coexist — ArcFace 0.76 (identity) + depth-corr 0.90 (structure) + subtle warm material. Whole-image Redux OR redux>=0.6 SWAMPS the face. Narrow operating point; a texture-swatch appearance ref gives stronger material than an object.
 license: open-weight — PuLID + FLUX.1-dev (non-commercial)
 pipeline: null
 paper: composition of 2404.16022 + 2511.05219 + 2603.26767
