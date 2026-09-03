@@ -414,14 +414,23 @@ def _run_identity_composed(a, recipe, inputs, P, seed):
     replace = any(o.get("op") == "replace_q" for o in recipe.get("ops", []))
     st = {"step": 0}
     pre_rope = _replace_q_op(a, bank, ids, st, _replace_schedule(P, a.steps))
-    # appearance (multi-donor Redux) + content
+    # appearance: Redux (subtle accent) OR K/V-share (strong material, non-Redux) + content
     pe, pooled = a.encode_prompt(inputs["prompt"])
     rx = _redux_condition(a, recipe, inputs, P)
     enc = torch.cat([rx, pe], dim=1) if rx is not None else pe
+    append_op = _kv_appearance(a, recipe, inputs, P)   # non-Redux material channel, or None
 
     def payload(i):
         st["step"] = i
-        return {PAYLOAD_KEY: {"pre_rope": pre_rope, "n_txt": int(enc.shape[1])}} if replace else None
+        p = {}
+        if replace:
+            p["pre_rope"] = pre_rope
+        if append_op is not None:
+            p["post_rope"] = append_op
+        if not p:
+            return None
+        p["n_txt"] = int(enc.shape[1])
+        return {PAYLOAD_KEY: p}
 
     latents, img_ids = _noise_latents(a, 1, seed)
     with flux_residual(a.tr, set(camap), idfn):

@@ -11,6 +11,6 @@ capture: null
 condition: {kind: kv_appearance, source: ref_appearance, edge: 2, sigma: 0.35, timestep: 661}
 ops: []
 params: {guidance: 6.5}
-validated: expressible   # NEW non-Redux material channel — validate via the appearance_kv spike (material without swamp?)
+validated: spike   # A100: KV-share keeps the PORTRAIT while applying the reference material/palette (coffee->warm orange, brick->cool grey) — where whole-image Redux swamped into a bare clone (portrait-CLIP 0.19 vs KV 0.24-0.26). The non-Redux material channel.
 pipeline: pipelines/appearance-transfer
 paper: https://arxiv.org/abs/2603.26767
