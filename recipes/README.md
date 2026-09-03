@@ -67,6 +67,7 @@ loop isn't fake-shipped as a recipe; it's mapped here with the extension it need
 | structure_regional | **composed** · `replace_q` + `bias` | ⚠️ recipe (expressible) | NEW composition — reference layout + per-region prompts in one pass; validate before trusting |
 | regional | regional · `bias` | ✅ recipe (spike) | — |
 | story-diffusion | **batch** · `share` | ✅ recipe (spike) | returns a list of frames |
+| story_reference | **batch** · `share` + Redux | ⚠️ recipe (expressible) | NEW — a character from a REFERENCE IMAGE across scenes; Redux appearance-level (look), not face-lock |
 | kv-edit | **edit** · `substitute` | ✅ recipe (spike) | RF-invert → substitute bg K/V via the shared pre-rope hook |
 | consistedit | **edit** · `blend` | ✅ recipe (spike) | **α (`consistency_strength`) dial: α≈0 = shape-change edit (validated); higher α progressively SUPPRESSES the edit** (output → source), it does **not** restyle. Default 0.0; use low α. |
 | stitch | regional · `bias` + cutout | ⏳ | a cutout/composite **post-op** after the region-bind bias (needs a non-attention step) |

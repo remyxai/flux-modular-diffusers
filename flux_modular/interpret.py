@@ -259,11 +259,21 @@ def _run_batch(a, recipe, inputs, P, seed):
     start_frac = float(P.get("share_start_frac", cond.get("share_start_frac", 0.35)))
     share_on = bool(P.get("story_share", True))
 
+    char = inputs.get("character_prompt", "")
     prompts = []
     for sc in inputs["scene_prompts"]:
         body = sc.partition("#")[0].strip()
-        prompts.append(body[4:].strip() if body.startswith("[NC]") else f"{inputs['character_prompt']}, {body}")
+        if body.startswith("[NC]"):
+            prompts.append(body[4:].strip())
+        else:
+            prompts.append(f"{char}, {body}" if char else body)
     pe, pooled = a.encode_prompt(prompts)
+    # optional: condition every frame on a reference image (Redux appearance) — a character-from-a-photo across
+    # scenes. NOTE: Redux carries appearance/look, NOT tight facial identity (that needs the identity/residual path).
+    ref = inputs.get("reference_image")
+    if ref is not None:
+        rx = a.redux_embed(ref, scale=float(P.get("redux_scale", 1.0)))
+        pe = torch.cat([rx.expand(pe.shape[0], -1, -1), pe], dim=1)
     latents, img_ids = _noise_latents(a, len(prompts), seed)
     start_step = int(start_frac * a.steps)
 

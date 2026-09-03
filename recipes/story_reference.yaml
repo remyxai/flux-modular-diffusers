@@ -1,0 +1,17 @@
+name: story_reference
+description: >-
+  Consistency — a character from a REFERENCE IMAGE across scenes (batch K/V share + Redux appearance conditioning).
+  Composition of story-diffusion ⊕ appearance. NOTE: Redux carries the reference's APPEARANCE/look, not tight
+  facial identity — for face-lock use the identity path (residual hook / PuLID), not this.
+run: batch
+requires: [single_stream, redux]
+inputs: [reference_image, scene_prompts]   # scene_prompts: ["...#caption", "[NC] a scene without the character", ...]
+site: {stream: all}
+capture: null
+condition: {kind: story, share_ratio: 0.3, share_start_frac: 0.35}
+ops:
+  - {op: share, tokens: image}
+params: {guidance: 3.5, share_ratio: 0.3, share_start_frac: 0.35, redux_scale: 1.0}
+validated: expressible   # NEW composition (story ⊕ appearance) — validate via explore.ipynb; appearance-level, not face-lock
+pipeline: null
+paper: composition of 2405.01434 + 2603.26767
