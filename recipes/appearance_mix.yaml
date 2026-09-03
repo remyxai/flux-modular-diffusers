@@ -1,0 +1,18 @@
+name: appearance_mix
+description: >-
+  Multi-reference appearance — mix material/style from TWO reference images (independent, sweepable scales),
+  content from the prompt. Set redux_scale_<image>=0 to drop a donor. Extends the single-ref appearance recipe.
+requires: [redux]
+inputs: [prompt, ref_a, ref_b]
+site: {stream: single, last_n: 25}
+capture: null
+condition:
+  kind: redux
+  sources:
+    - {image: ref_a, scale: 1.0}
+    - {image: ref_b, scale: 1.0}
+ops: []
+params: {guidance: 6.5}
+validated: expressible   # NEW multi-donor composition — validate via explore.ipynb (per-donor scale = redux_scale_ref_a / _ref_b)
+pipeline: null
+paper: multi-Redux composition (builds on 2603.26767)

@@ -28,7 +28,7 @@ side-by-side comparison grid.
 | `inputs` | required `run()` inputs (`prompt` + any `ref_*` image keys) |
 | `site` | where: `{stream: single, last_n: N}` or `{stream: both, edge: n}` |
 | `capture` | optional pre-pass banking reference Q: `{kind: lcd_q, sigma, timestep, source}` |
-| `condition` | optional conditioning added to the prompt: `{kind: redux, source, mask_floor}` |
+| `condition` | optional conditioning added to the prompt: `{kind: redux, source}` (single donor) or `{kind: redux, sources: [{image, scale}, ...]}` (multi-donor, per-donor `redux_scale_<image>`) |
 | `ops` | the intervention: `[{op: replace_q, tokens: image}, ...]` |
 | `params` | default knobs (`S` = structure-inject fraction, `schedule` = `cutoff`/`linear`/`cosine` for hard vs smooth structure release, `redux_scale`, `guidance`, `last_n`, `sigma`) |
 | `validated` | **honesty flag** — see below |
@@ -63,6 +63,7 @@ loop isn't fake-shipped as a recipe; it's mapped here with the extension it need
 |---|---|---|---|
 | freecontrol | default · `replace_q` | ✅ recipe (block-parity) | — |
 | appearance | default · Redux | ✅ recipe (spike) | — |
+| appearance_mix | default · multi-Redux | ⚠️ recipe (expressible) | NEW multi-donor — mix material/style from 2+ refs, per-donor sweepable scales |
 | structure_appearance | default · `replace_q` + Redux | ✅ recipe (spike) | — |
 | structure_regional | **composed** · `replace_q` + `bias` | ⚠️ recipe (expressible) | NEW composition — reference layout + per-region prompts in one pass; validate before trusting |
 | regional | regional · `bias` | ✅ recipe (spike) | — |

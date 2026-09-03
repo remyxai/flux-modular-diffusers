@@ -101,6 +101,27 @@ def _noise_latents(a, batch, seed):
     return lat, prepare_latent_image_ids(lh // 2, lw // 2, a.device, a.dtype)
 
 
+# ------------------------------------------------------------------ multi-donor Redux conditioning
+def _redux_condition(a, recipe, inputs, P):
+    """Concatenated (scaled) Redux image embeds for the recipe's ``condition``, or None. Supports a single source
+    ``{kind: redux, source: ref_appearance}`` (scale from ``redux_scale``) OR multiple donors
+    ``{kind: redux, sources: [{image: ref_a, scale: 1.0}, {image: ref_b, scale: 0.5}]}`` — each donor's scale is
+    overridable per-run via ``redux_scale_<image>`` (so mixes are sweepable / a donor drops out at scale 0)."""
+    cond = recipe.get("condition") or {}
+    if cond.get("kind") != "redux":
+        return None
+    sources = cond.get("sources")
+    if sources is None:
+        src = cond.get("source", "ref_appearance")
+        return a.redux_embed(inputs[src], scale=float(P.get("redux_scale", 1.0)))
+    embs = []
+    for sd in sources:
+        key = sd["image"]
+        scale = float(P.get(f"redux_scale_{key}", sd.get("scale", 1.0)))
+        embs.append(a.redux_embed(inputs[key], scale=scale))
+    return torch.cat(embs, dim=1) if embs else None
+
+
 # ------------------------------------------------------------------ structure schedule (soft replace)
 def _replace_schedule(P, steps):
     """Return step -> weight in [0,1] for structure Q-replace. ``schedule``: 'cutoff' (default, hard on/off —
@@ -151,11 +172,8 @@ def _run_default(a, recipe, inputs, P, seed):
         bank = _capture_q(a, inputs[cap.get("source", "ref_structure")], P.get("sigma", cap.get("sigma", 0.35)),
                           int(cap.get("timestep", 661)), ids)
     pe, pooled = a.encode_prompt(inputs["prompt"])
-    cond = recipe.get("condition")
-    enc = pe
-    if cond and cond.get("kind") == "redux":
-        rx = a.redux_embed(inputs[cond.get("source", "ref_appearance")], scale=P.get("redux_scale", 1.0))
-        enc = torch.cat([rx, pe], dim=1)
+    rx = _redux_condition(a, recipe, inputs, P)
+    enc = torch.cat([rx, pe], dim=1) if rx is not None else pe
     replace = any(o.get("op") == "replace_q" for o in recipe.get("ops", []))
     st = {"step": 0}
     pre_rope = _replace_q_op(a, bank, ids, st, _replace_schedule(P, a.steps))
@@ -268,11 +286,11 @@ def _run_batch(a, recipe, inputs, P, seed):
         else:
             prompts.append(f"{char}, {body}" if char else body)
     pe, pooled = a.encode_prompt(prompts)
-    # optional: condition every frame on a reference image (Redux appearance) — a character-from-a-photo across
-    # scenes. NOTE: Redux carries appearance/look, NOT tight facial identity (that needs the identity/residual path).
-    ref = inputs.get("reference_image")
-    if ref is not None:
-        rx = a.redux_embed(ref, scale=float(P.get("redux_scale", 1.0)))
+    # optional: condition every frame on one or more reference images (Redux appearance) — a character/look from a
+    # photo across scenes. NOTE: Redux carries appearance/look, NOT tight facial identity (that's the identity path).
+    refs = inputs.get("reference_images") or ([inputs["reference_image"]] if inputs.get("reference_image") is not None else [])
+    if refs:
+        rx = torch.cat([a.redux_embed(im, scale=float(P.get("redux_scale", 1.0))) for im in refs], dim=1)
         pe = torch.cat([rx.expand(pe.shape[0], -1, -1), pe], dim=1)
     latents, img_ids = _noise_latents(a, len(prompts), seed)
     start_step = int(start_frac * a.steps)
