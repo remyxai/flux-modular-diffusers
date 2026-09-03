@@ -14,7 +14,7 @@ import numpy as np
 import torch
 from diffusers.utils.torch_utils import randn_tensor
 
-from .attention import flux_intervention, last_single_attn_ids, edge_attn_ids, PAYLOAD_KEY
+from .attention import flux_intervention, last_single_attn_ids, edge_attn_ids, PAYLOAD_KEY, op_append, op_capture_image_kv  # noqa: E501
 from .plumbing import pack_latents, unpack_latents, prepare_latent_image_ids, calculate_shift
 from .residual import flux_residual, residual_block_ids, op_capture_feat, op_inject_feat
 
@@ -75,6 +75,37 @@ def _capture_q(a, img, sigma, timestep, ids):
              txt_ids=tids, img_ids=iid,
              joint_attention_kwargs={PAYLOAD_KEY: {"pre_rope": cap, "n_txt": pe.shape[1]}}, return_dict=False)
     return bank
+
+
+def _capture_image_kv(a, img, ids, sigma=0.35, timestep=661):
+    """Capture the appearance reference's image K/V at ``ids`` blocks (one LCD pass) -> a bank for op_append. The
+    non-Redux material channel: gen patches attend cross-image to this bank for texture, without Redux's global
+    content takeover."""
+    bank = {}
+    xt = ((1.0 - float(sigma)) * _encode_x0(a, img)).to(a.dtype)
+    pe, pooled = a.encode_prompt("")
+    tids = _text_ids(a, pe.shape[1])
+    iid = prepare_latent_image_ids(a.H // 16, a.W // 16, a.device, a.dtype)
+    g = torch.full((1,), 3.5, device=a.device, dtype=a.dtype)
+    ts = torch.full((1,), float(timestep) / 1000, device=a.device, dtype=a.dtype)
+    with flux_intervention(a.tr):
+        a.tr(hidden_states=xt, timestep=ts, guidance=g, pooled_projections=pooled, encoder_hidden_states=pe,
+             txt_ids=tids, img_ids=iid,
+             joint_attention_kwargs={PAYLOAD_KEY: {"post_rope": op_capture_image_kv(bank, a.n_img, ids)}},
+             return_dict=False)
+    return bank
+
+
+def _kv_appearance(a, recipe, inputs, P):
+    """If the recipe's condition is ``kv_appearance``, capture the reference K/V and return (append_op, n_txt=None).
+    Returns (None, None) otherwise. The append op is a post_rope hook for the denoise payload."""
+    cond = recipe.get("condition") or {}
+    if cond.get("kind") != "kv_appearance":
+        return None
+    ids = edge_attn_ids(a.tr, int(cond.get("edge", 2)))
+    bank = _capture_image_kv(a, inputs[cond.get("source", "ref_appearance")], ids,
+                             float(cond.get("sigma", 0.35)), int(cond.get("timestep", 661)))
+    return op_append(bank, ids)
 
 
 def _denoise(a, latents, enc, pooled, img_ids, guidance_scale, payload=None):
@@ -204,13 +235,22 @@ def _run_default(a, recipe, inputs, P, seed):
     pe, pooled = a.encode_prompt(inputs["prompt"])
     rx = _redux_condition(a, recipe, inputs, P)
     enc = torch.cat([rx, pe], dim=1) if rx is not None else pe
+    append_op = _kv_appearance(a, recipe, inputs, P)   # non-Redux material channel (K/V-share), or None
     replace = any(o.get("op") == "replace_q" for o in recipe.get("ops", []))
     st = {"step": 0}
     pre_rope = _replace_q_op(a, bank, ids, st, _replace_schedule(P, a.steps))
 
     def payload(i):
         st["step"] = i
-        return {PAYLOAD_KEY: {"pre_rope": pre_rope, "n_txt": int(enc.shape[1])}} if replace else None
+        p = {}
+        if replace:
+            p["pre_rope"] = pre_rope
+        if append_op is not None:
+            p["post_rope"] = append_op
+        if not p:
+            return None
+        p["n_txt"] = int(enc.shape[1])
+        return {PAYLOAD_KEY: p}
 
     latents, img_ids = _noise_latents(a, 1, seed)
     out = _denoise(a, latents, enc, pooled, img_ids, float(P.get("guidance", 6.5)), payload)

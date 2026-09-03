@@ -62,6 +62,7 @@ loop isn't fake-shipped as a recipe; it's mapped here with the extension it need
 |---|---|---|---|
 | freecontrol | default · `replace_q` | ✅ recipe (block-parity) | — |
 | appearance | default · Redux | ✅ recipe (spike) | — |
+| appearance_kv | default · K/V-share | ⚠️ recipe (expressible) | NEW non-Redux material channel — append reference image K/V (attends cross-image for texture); should give material without Redux's swamp |
 | appearance_mix | default · multi-Redux | ⚠️ recipe (expressible) | NEW multi-donor — mix material/style from 2+ refs, per-donor sweepable scales |
 | structure_appearance | default · `replace_q` + Redux | ✅ recipe (spike) | — |
 | structure_regional | **composed** · `replace_q` + `bias` | ⚠️ recipe (expressible) | NEW composition — reference layout + per-region prompts in one pass; validate before trusting |

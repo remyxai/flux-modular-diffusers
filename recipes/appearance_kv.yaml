@@ -1,0 +1,16 @@
+name: appearance_kv
+description: >-
+  Reference appearance/material via K/V-SHARE (non-Redux) — capture the reference's image K/V and append it to the
+  generation's attention so each patch attends cross-image to the reference's texture. Unlike Redux (a global-content
+  token that swamps the composition), this is an additive attention context -> material accent, prompt preserved.
+  The appearance-transfer secondary channel. No Redux components needed.
+requires: [rope, single_stream]
+inputs: [prompt, ref_appearance]
+site: {stream: single, last_n: 25}
+capture: null
+condition: {kind: kv_appearance, source: ref_appearance, edge: 2, sigma: 0.35, timestep: 661}
+ops: []
+params: {guidance: 6.5}
+validated: expressible   # NEW non-Redux material channel — validate via the appearance_kv spike (material without swamp?)
+pipeline: pipelines/appearance-transfer
+paper: https://arxiv.org/abs/2603.26767
