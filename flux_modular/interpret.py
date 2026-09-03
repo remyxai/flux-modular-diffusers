@@ -101,6 +101,33 @@ def _noise_latents(a, batch, seed):
     return lat, prepare_latent_image_ids(lh // 2, lw // 2, a.device, a.dtype)
 
 
+# ------------------------------------------------------------------ structure schedule (soft replace)
+def _replace_schedule(P, steps):
+    """Return step -> weight in [0,1] for structure Q-replace. ``schedule``: 'cutoff' (default, hard on/off —
+    back-compatible), 'linear', or 'cosine' (smooth 1->0 decay over the first ``S`` fraction of steps). A smooth
+    decay releases structure gradually instead of a hard step, which mitigates the over-lock hard cutoffs cause."""
+    kind = P.get("schedule", "cutoff")
+    cut = max(1, int(float(P.get("S", 0.3)) * steps))
+    if kind == "linear":
+        return lambda i: float(max(0.0, 1.0 - i / cut)) if i < cut else 0.0
+    if kind == "cosine":
+        return lambda i: float(0.5 * (1.0 + np.cos(np.pi * i / cut))) if i < cut else 0.0
+    return lambda i: 1.0 if i < cut else 0.0
+
+
+def _replace_q_op(a, bank, ids, st, sched):
+    """pre_rope: mix the banked reference image-Q into the current image-Q by the schedule weight w(step).
+    w=1 -> full replace (== the old hard cutoff), 0<w<1 -> lerp (soft), w=0 -> untouched."""
+    def pre_rope(q, k, v, off, attn, pl):
+        w = sched(st["step"])
+        if w > 0.0 and id(attn) in ids and id(attn) in bank:
+            ref = bank[id(attn)].to(q)
+            q = q.clone()
+            q[:, -a.n_img:] = ref if w >= 1.0 else torch.lerp(q[:, -a.n_img:], ref, float(w))
+        return q, k, v
+    return pre_rope
+
+
 # ------------------------------------------------------------------ dispatch
 def run_recipe(a, recipe, inputs, seed=0, **overrides):
     P = {**recipe.get("params", {}), **overrides}
@@ -130,13 +157,8 @@ def _run_default(a, recipe, inputs, P, seed):
         rx = a.redux_embed(inputs[cond.get("source", "ref_appearance")], scale=P.get("redux_scale", 1.0))
         enc = torch.cat([rx, pe], dim=1)
     replace = any(o.get("op") == "replace_q" for o in recipe.get("ops", []))
-    cut = int(float(P.get("S", 0.3)) * a.steps)
     st = {"step": 0}
-
-    def pre_rope(q, k, v, off, attn, pl):
-        if replace and st["step"] < cut and id(attn) in ids and id(attn) in bank:
-            q = q.clone(); q[:, -a.n_img:] = bank[id(attn)].to(q)
-        return q, k, v
+    pre_rope = _replace_q_op(a, bank, ids, st, _replace_schedule(P, a.steps))
 
     def payload(i):
         st["step"] = i
@@ -215,14 +237,9 @@ def _run_composed(a, recipe, inputs, P, seed):
         bank = _capture_q(a, inputs[cap.get("source", "ref_structure")], P.get("sigma", cap.get("sigma", 0.35)),
                           int(cap.get("timestep", 661)), ids)
     replace = any(o.get("op") == "replace_q" for o in recipe.get("ops", []))
-    cut = int(float(P.get("S", 0.3)) * a.steps)
     st = {"step": 0}
     region_bias = lambda q, k, ntxt, attn, pl: mask
-
-    def pre_rope(q, k, v, off, attn, pl):
-        if replace and st["step"] < cut and id(attn) in ids and id(attn) in bank:
-            q = q.clone(); q[:, -a.n_img:] = bank[id(attn)].to(q)
-        return q, k, v
+    pre_rope = _replace_q_op(a, bank, ids, st, _replace_schedule(P, a.steps))
 
     def payload(i):
         st["step"] = i

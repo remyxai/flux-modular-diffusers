@@ -30,7 +30,7 @@ side-by-side comparison grid.
 | `capture` | optional pre-pass banking reference Q: `{kind: lcd_q, sigma, timestep, source}` |
 | `condition` | optional conditioning added to the prompt: `{kind: redux, source, mask_floor}` |
 | `ops` | the intervention: `[{op: replace_q, tokens: image}, ...]` |
-| `params` | default knobs (`S` = structure-inject step cutoff, `redux_scale`, `guidance`, `last_n`, `sigma`) |
+| `params` | default knobs (`S` = structure-inject fraction, `schedule` = `cutoff`/`linear`/`cosine` for hard vs smooth structure release, `redux_scale`, `guidance`, `last_n`, `sigma`) |
 | `validated` | **honesty flag** — see below |
 | `pipeline` / `paper` | links to the shipped turnkey block + source method |
 
