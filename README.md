@@ -1,48 +1,64 @@
 # flux-recipes
 
-A toolkit for **training-free FLUX interventions**: one attention primitive, a library of methods expressed as
-**recipes**, a single interpreter that **runs / sweeps / generates** them, and the turnkey
-[Modular Diffusers](https://huggingface.co/docs/diffusers/main/en/modular_diffusers/custom_blocks) pipelines they
-produce. Every published pipeline loads the same way — swap the repo id, change the capability:
+**Training-free FLUX interventions as data.** A generation of "training-free _X_ on FLUX" papers — structural
+control, appearance transfer, identity, story consistency, region control, editing — are, underneath, the *same
+move*: install one joint-attention intervention and capture / replace / share / bias some `q/k/v` at some blocks
+for some steps. This repo makes that move **data**: one attention primitive, one interpreter, and a library of
+methods written as **YAML recipes** — so a method is a row in a table, a composition the source papers never tried
+is *also* a row, and the turnkey [Modular Diffusers](https://huggingface.co/docs/diffusers/main/en/modular_diffusers/custom_blocks)
+pipelines are the compiled output.
 
 ```python
+# every published pipeline loads the same way — swap the repo id, change the capability
 import torch
 from diffusers import ModularPipeline
 pipe = ModularPipeline.from_pretrained("remyxai/<pipeline>-flux-modular", trust_remote_code=True)
 pipe.load_components(dtype=torch.bfloat16); pipe.to("cuda")
 ```
 
-…and the *same* method is one config you can run and sweep — including compositions the source papers never tried:
-
 ```python
+# …and the same method is one config you can run, sweep, and COMPOSE
 from flux_modular import RecipeRunner
 runner = RecipeRunner()
-img = runner.run("structure_appearance",                  # a method by name; freecontrol ⊕ appearance
+img = runner.run("structure_appearance",                  # freecontrol ⊕ appearance — a composition, by name
                  {"prompt": "a portrait", "ref_structure": pose, "ref_appearance": material}, S=0.5)
 ```
 
-## Architecture
+## Architecture — a method is data, not a denoise loop
 
-Most of the shipped pipelines are the *same move* — install an attention intervention, capture/replace/share/bias
-some `q/k/v` at some blocks for some steps. This repo factors that move into layers so a method is **data**, not a
-hand-written denoise loop:
+Four layers turn "hand-roll a pipeline per paper" into "add a row":
 
-1. **[`flux_modular/`](flux_modular/) — the primitive.** A FLUX joint-attention intervention (`FluxIntervention`,
-   subclassing diffusers' own `FluxAttnProcessor`) + an op menu (capture/replace Q, share K/V, bias, substitute,
-   blend, read weights) + FLUX plumbing.
-2. **[`recipes/`](recipes/) — methods as configs.** One YAML `(site, schedule, op, params)` row per method, each
-   with an honest `validated:` flag. New capabilities and compositions are new rows.
-3. **[`flux_modular/interpret.py`](flux_modular/interpret.py) — one interpreter.** `run_recipe(adapter, recipe,
-   inputs)` drives every recipe over four run-loops (default / regional / batch / edit). It's adapter-driven, so
-   the *same* code serves exploration and shipping.
-4. **Run · sweep · generate.** [`RecipeRunner`](flux_modular/runner.py) wraps a `FluxPipeline` for exploration
-   (**start here:** [`notebooks/papers_as_recipes.ipynb`](notebooks/papers_as_recipes.ipynb) runs published methods
-   as configs + shows the codegen CLI; [`notebooks/explore.ipynb`](notebooks/explore.ipynb): sweep + compare);
-   [`flux_modular/codegen.py`](flux_modular/codegen.py) (`scripts/gen_pipeline.py`) turns a validated recipe into
-   a standalone `pipelines/<name>/` — `block.py` + configs + the vendored flat primitive — with **no
-   re-implemented denoise loop**.
-5. **[`pipelines/`](pipelines/) — the turnkey outputs.** Each is the source for a HF Hub repo
-   (`remyxai/<name>-flux-modular`): `block.py`, configs, model card, and an e2e notebook a reviewer runs.
+1. **[`flux_modular/`](flux_modular/) — one primitive.** `FluxIntervention` subclasses diffusers' own
+   `FluxAttnProcessor`: it returns the stock path **bit-exact when idle** (native attention backend preserved), and
+   otherwise reads a payload off the existing `joint_attention_kwargs["flux_mod"]` seam and acts on `q/k/v` at three
+   hook points (pre-RoPE, post-RoPE, bias). A sibling **residual seam** (`flux_residual`, block-output hooks) covers
+   the few methods that modulate the image stream instead of attention. The op menu — capture/replace Q,
+   share/append/substitute/blend K/V, bias, read weights — is the whole vocabulary.
+2. **[`interpret.py`](flux_modular/interpret.py) — one interpreter.** `run_recipe` compiles a recipe into those
+   payloads across **8 run-paths** (`default · regional · composed · residual · identity · identity_composed ·
+   batch · edit`). No per-method forward pass; the move *is* the config. It's adapter-driven, so the same code
+   serves exploration and shipping — sweep/compare in [`notebooks/papers_as_recipes.ipynb`](notebooks/papers_as_recipes.ipynb)
+   and [`explore.ipynb`](notebooks/explore.ipynb).
+3. **[`recipes/`](recipes/) — methods (and compositions) as configs.** **18** YAML `(site, capture, condition, ops,
+   params)` rows — FreeControl, appearance-transfer, story-diffusion, kv-edit, PuLID identity, and their stacked
+   compositions — each with an honest `validated:` flag. A new capability is a new row; a `sweep` explores the
+   neighborhood.
+4. **Compile — [`codegen.py`](flux_modular/codegen.py) → [`pipelines/`](pipelines/).** A validated recipe generates
+   a thin standalone `block.py` (+ configs + the vendored flat primitive, **no re-implemented denoise loop**),
+   shipped as `remyxai/<name>-flux-modular` on the Hub — **14** turnkey pipelines the abstraction was distilled from
+   and can regenerate.
+
+**More than a refactor:**
+- **Compositions are the payoff.** Interventions are orthogonal payload contributions, so they *stack* — identity ⊕
+  structure ⊕ material in one denoise; frame-share ⊕ gated palette across a story. The recipes the papers didn't
+  write are the point (see [`notebooks/story_compositions.ipynb`](notebooks/story_compositions.ipynb)).
+- **An honesty flag on every claim.** `validated:` is `block-parity` (matches the hand-written block's metric),
+  `spike` (GPU-validated vs a baseline + eyeball), or `expressible` (should work, unproven) — currently **14 spike /
+  1 block-parity / 3 expressible**. "Should work" is never dressed up as "validated": an op must be *proven to fire*,
+  and the eyeball overrides metrics that lie.
+- **It knows where it stops.** Not everything is attention-payload-shaped: FlowEdit is a velocity ODE, CatVTON/PuLID
+  are Fill-based / open-weight specialists. Those **stage as specialists** (identity→PuLID, palette→gated K/V,
+  garment→CatVTON) instead of being faked as recipes. Knowing the abstraction's boundary is part of the design.
 
 The op menu is model-agnostic; the **adapter** (token layout, RoPE, plumbing) is per-checkpoint, and a recipe
 declares `requires:` so incompatible models reject cleanly. Cross-model transfer is **verified per method**, not
