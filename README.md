@@ -1,45 +1,52 @@
 # FLUX Modular Diffusers
 
-Training-free and open-weight capabilities for off-the-shelf **FLUX**, each packaged as a one-line
-[Modular Diffusers](https://huggingface.co/docs/diffusers/main/en/modular_diffusers/custom_blocks) community
-pipeline. Every pipeline loads the same way — swap the repo id, change the capability:
+A toolkit for **training-free FLUX interventions**: one attention primitive, a library of methods expressed as
+**recipes**, a single interpreter that **runs / sweeps / generates** them, and the turnkey
+[Modular Diffusers](https://huggingface.co/docs/diffusers/main/en/modular_diffusers/custom_blocks) pipelines they
+produce. Every published pipeline loads the same way — swap the repo id, change the capability:
 
 ```python
 import torch
 from diffusers import ModularPipeline
-
 pipe = ModularPipeline.from_pretrained("remyxai/<pipeline>-flux-modular", trust_remote_code=True)
 pipe.load_components(dtype=torch.bfloat16); pipe.to("cuda")
 ```
 
-Each `pipelines/<name>/` here is the **source** for a HF Hub repo (`remyxai/<name>-flux-modular`): the
-`block.py`, its configs, the model card, and an end-to-end notebook a reviewer runs to verify before merge.
-
-## Two layers: a primitive + recipes, and the pipelines they generate
-
-Under the pipelines is one shared primitive, [`flux_modular`](flux_modular/) — a FLUX joint-attention
-intervention (`FluxIntervention`, subclassing diffusers' own `FluxAttnProcessor`) plus a small op menu
-(capture/replace Q, share K/V, bias, substitute, blend, read weights) and the FLUX plumbing. Most pipelines here
-are the *same move* expressed differently, so we also expose them as **[recipes](recipes/)** — declarative
-`(site, schedule, op, params)` configs that [`FluxLens`](flux_modular/lens.py) runs:
+…and the *same* method is one config you can run and sweep — including compositions the source papers never tried:
 
 ```python
 from flux_modular import FluxLens, load_recipes
 lens, recipes = FluxLens(), load_recipes()
-img = lens.run(recipes["freecontrol"], {"prompt": "a bronze statue bust", "ref_structure": ref}, S=0.3)
+img = lens.run(recipes["structure_appearance"],           # freecontrol ⊕ appearance, one run path
+               {"prompt": "a portrait", "ref_structure": pose, "ref_appearance": material}, S=0.5)
 ```
 
-- **[`recipes/`](recipes/)** — one config per method (e.g. `freecontrol` reproduces its shipped block at
-  depth-corr 0.883 ≈ 0.89). New capabilities — including **compositions the source papers never tried**
-  (`structure_appearance` = `freecontrol` ⊕ `appearance`) — are new rows, not new code.
-- **[`notebooks/explore.ipynb`](notebooks/explore.ipynb)** — run any recipe and **sweep new configurations** with
-  a side-by-side comparison grid + a metric panel (rank only; the GO call is by eye).
-- **[`pipelines/`](pipelines/)** — the turnkey HF outputs. A validated recipe can be realised as one.
+## Architecture
 
-The op menu is model-agnostic; the adapter (token layout, RoPE, plumbing) is per-checkpoint. A recipe declares
-`requires:` so incompatible models reject cleanly. Cross-model transfer is **verified per method**, not assumed
-(an SD3.5 probe found the adapter ports but Q-replace is rope-specific) — so recipes are FLUX-family for now. See
-[`recipes/README.md`](recipes/README.md).
+Most of the shipped pipelines are the *same move* — install an attention intervention, capture/replace/share/bias
+some `q/k/v` at some blocks for some steps. This repo factors that move into layers so a method is **data**, not a
+hand-written denoise loop:
+
+1. **[`flux_modular/`](flux_modular/) — the primitive.** A FLUX joint-attention intervention (`FluxIntervention`,
+   subclassing diffusers' own `FluxAttnProcessor`) + an op menu (capture/replace Q, share K/V, bias, substitute,
+   blend, read weights) + FLUX plumbing.
+2. **[`recipes/`](recipes/) — methods as configs.** One YAML `(site, schedule, op, params)` row per method, each
+   with an honest `validated:` flag. New capabilities and compositions are new rows.
+3. **[`flux_modular/interpret.py`](flux_modular/interpret.py) — one interpreter.** `run_recipe(adapter, recipe,
+   inputs)` drives every recipe over four run-loops (default / regional / batch / edit). It's adapter-driven, so
+   the *same* code serves exploration and shipping.
+4. **Run · sweep · generate.** [`FluxLens`](flux_modular/lens.py) wraps a `FluxPipeline` for exploration
+   ([`notebooks/explore.ipynb`](notebooks/explore.ipynb): run any recipe, sweep configurations, compare);
+   [`flux_modular/codegen.py`](flux_modular/codegen.py) (`scripts/gen_pipeline.py`) turns a validated recipe into
+   a standalone `pipelines/<name>/` — `block.py` + configs + the vendored flat primitive — with **no
+   re-implemented denoise loop**.
+5. **[`pipelines/`](pipelines/) — the turnkey outputs.** Each is the source for a HF Hub repo
+   (`remyxai/<name>-flux-modular`): `block.py`, configs, model card, and an e2e notebook a reviewer runs.
+
+The op menu is model-agnostic; the **adapter** (token layout, RoPE, plumbing) is per-checkpoint, and a recipe
+declares `requires:` so incompatible models reject cleanly. Cross-model transfer is **verified per method**, not
+assumed (an SD3.5 probe found the adapter ports but Q-replace is rope-specific) — so recipes are FLUX-family for
+now. See [`recipes/README.md`](recipes/README.md).
 
 ## Catalog
 
