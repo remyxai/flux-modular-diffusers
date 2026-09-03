@@ -38,11 +38,11 @@ side-by-side comparison grid.
 
 - **`block-parity`** — the recipe reproduces the hand-written `pipelines/<name>` block's metric on an A100
   (e.g. `freecontrol` config depth-corr **0.883** vs the shipped block's **0.89**).
-- **`spike`** — validated by a GPU spike but not yet cross-checked against a standalone block
-  (`appearance`, `structure_appearance`).
-- **`expressible`** — the ops exist and the recipe *should* work, but it hasn't been GPU-validated through the
-  lens yet. **Validate via `explore.ipynb` before trusting it.** (No `expressible` recipes are shipped yet — add
-  the remaining attention-methods here as they're validated.)
+- **`spike`** — validated by a GPU spike (fire-proofed vs a baseline + a metric + eyeball) but not cross-checked
+  against a standalone block (`appearance`, `structure_appearance`, `regional`, `story`, `kv-edit`).
+- **`expressible`** — the ops exist and the recipe *should* work, but it hasn't passed the lens on an A100 yet.
+  **Validate via `validate_recipes.ipynb` before trusting it.** Currently: `consistedit` (fires + preserves
+  structure, but over-locks the edit at `consistency_strength=0.4` — needs an α sweep).
 
 ## Scope — this is the FLUX adapter
 
@@ -72,10 +72,10 @@ loop isn't fake-shipped as a recipe; it's mapped here with the extension it need
 | stitch | regional · `bias` + cutout | ⏳ | a cutout/composite **post-op** after the region-bind bias (needs a non-attention step) |
 | flowedit | — (custom ODE) | ✗ | inversion-free velocity trick, **not** an attention op — stays a standalone pipeline |
 
-7 recipes across 4 run paths. The two remaining are honestly *not* pure-attention recipes: `stitch` needs a
+7 recipes across 4 run paths — 6 A100-validated (`spike`/`block-parity`), `consistedit` still `expressible`
+(over-locks at α=0.4). The two unshipped are honestly *not* pure-attention recipes: `stitch` needs a
 cutout/composite **post-op** on top of the region-bind bias, and `flowedit` is a custom velocity ODE, not an
-attention payload at all. **Editing/consistency recipes are `expressible` — faithful ports, but GPU-validate via
-`explore.ipynb` before trusting them.**
+attention payload at all.
 
 The non-attention pipelines (`hrdit`, `dype`, `pulid`, `catvton`, `panorama`) use pos-embed swaps / LoRA compose /
 custom loops, not the attention payload — they aren't recipe-shaped and remain standalone.
