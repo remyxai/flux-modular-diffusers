@@ -9,7 +9,7 @@ requires: [pulid, rope, single_stream]
 inputs: [id_image, scene_prompts, ref_appearance]
 condition: {kind: kv_appearance, source: ref_appearance, edge: 2, sigma: 0.35, timestep: 661, start_frac: 0.4}
 params: {id_weight: 1.0, share_ratio: 0.3, share_start_frac: 0.35, guidance: 3.5}
-validated: expressible   # composes two VALIDATED primitives: identity_story (face across panels) + the start_frac-gated kv_appearance material palette (identity_structure_material spike). Extended _run_batch to carry frame-share + gated material append (composed post_rope). Spike to confirm the palette reads across panels WITHOUT diluting the per-panel face; brick/cool untested.
+validated: spike   # A100 (story_compositions.ipynb): the start_frac-gated material palette composes with frame-share across panels WITHOUT diluting the face. Face held 0.71-0.77 (ArcFace, ~= plain identity_story) across all 3 panels; palette read consistently (CLIP-to-palette 0.47-0.49, tight) as a warm teal/amber art-direction. Extended _run_batch carries frame-share + gated material append (composed post_rope). Honest: palette is an ACCENT (content early, style late), not a takeover; brick/cool untested.
 license: open-weight — PuLID + FLUX.1-dev (non-commercial)
 pipeline: null
 paper: composition of 2404.16022 (story-diffusion frame-share) + PuLID + 2603.26767 (K/V material)
