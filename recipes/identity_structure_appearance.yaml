@@ -14,7 +14,7 @@ ops:
   - {op: replace_q, tokens: image}   # structure (late single blocks, soft schedule)
   # appearance = the redux condition above
 params: {id_weight: 1.0, S: 0.5, schedule: cosine, redux_scale: 0.3, guidance: 4.0}
-validated: spike   # A100: with MASK-WEIGHTED Redux (appearance_mask) at redux_scale=0.3, all three coexist — ArcFace 0.76 (identity) + depth-corr 0.90 (structure) + subtle warm material. Whole-image Redux OR redux>=0.6 SWAMPS the face. Narrow operating point; a texture-swatch appearance ref gives stronger material than an object.
+validated: spike   # A100: identity+structure hold (ArcFace 0.76 + depth 0.90); appearance is a SUBTLE ACCENT ONLY — at redux~0.3 (mask-weighted) the palette nudges; redux>=0.4 SWAMPS the face for ANY donor (object OR texture — Redux injects global content). Strong material transfer onto a face-lock needs a non-Redux channel.
 license: open-weight — PuLID + FLUX.1-dev (non-commercial)
 pipeline: null
 paper: composition of 2404.16022 + 2511.05219 + 2603.26767
