@@ -2,7 +2,7 @@
 
 A recipe (see ``recipes/``) is data; ``run_recipe(a, recipe, inputs)`` turns it into ``flux_modular`` payloads and
 runs it. ``a`` is an adapter exposing the model pieces, so the SAME interpreter serves both:
-  * :class:`flux_modular.lens.FluxLens` (wraps a ``FluxPipeline`` — for exploration/sweeps), and
+  * :class:`flux_modular.runner.RecipeRunner` (wraps a ``FluxPipeline`` — for exploration/sweeps), and
   * a generated ``block.py`` via :class:`ComponentsAdapter` (wraps Modular-Diffusers ``components`` — the shipped
     turnkey pipeline). So a validated recipe becomes a ~30-line block instead of a re-implemented denoise loop.
 

@@ -21,7 +21,7 @@ from .attention import (
 )
 
 # Recipe layer (methods-as-configs) + the FLUX runner/sweeper. Imported lazily-friendly: the heavy
-# diffusers/transformers loads happen only when FluxLens is constructed, not at ``import flux_modular``.
+# diffusers/transformers loads happen only when RecipeRunner is constructed, not at ``import flux_modular``.
 from .recipes import load_recipe, load_recipes
 
 __all__ = [
@@ -35,9 +35,9 @@ __all__ = [
 
 def __getattr__(name):
     # lazy: import the heavy (diffusers-dependent) symbols only on first use, not at package load
-    if name == "FluxLens":
-        from .lens import FluxLens
-        return FluxLens
+    if name == "RecipeRunner":
+        from .runner import RecipeRunner
+        return RecipeRunner
     if name in ("run_recipe", "ComponentsAdapter"):
         from . import interpret
         return getattr(interpret, name)

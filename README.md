@@ -15,10 +15,10 @@ pipe.load_components(dtype=torch.bfloat16); pipe.to("cuda")
 …and the *same* method is one config you can run and sweep — including compositions the source papers never tried:
 
 ```python
-from flux_modular import FluxLens, load_recipes
-lens, recipes = FluxLens(), load_recipes()
-img = lens.run(recipes["structure_appearance"],           # freecontrol ⊕ appearance, one run path
-               {"prompt": "a portrait", "ref_structure": pose, "ref_appearance": material}, S=0.5)
+from flux_modular import RecipeRunner
+runner = RecipeRunner()
+img = runner.run("structure_appearance",                  # a method by name; freecontrol ⊕ appearance
+                 {"prompt": "a portrait", "ref_structure": pose, "ref_appearance": material}, S=0.5)
 ```
 
 ## Architecture
@@ -35,7 +35,7 @@ hand-written denoise loop:
 3. **[`flux_modular/interpret.py`](flux_modular/interpret.py) — one interpreter.** `run_recipe(adapter, recipe,
    inputs)` drives every recipe over four run-loops (default / regional / batch / edit). It's adapter-driven, so
    the *same* code serves exploration and shipping.
-4. **Run · sweep · generate.** [`FluxLens`](flux_modular/lens.py) wraps a `FluxPipeline` for exploration
+4. **Run · sweep · generate.** [`RecipeRunner`](flux_modular/runner.py) wraps a `FluxPipeline` for exploration
    (**start here:** [`notebooks/papers_as_recipes.ipynb`](notebooks/papers_as_recipes.ipynb) runs published methods
    as configs + shows the codegen CLI; [`notebooks/explore.ipynb`](notebooks/explore.ipynb): sweep + compare);
    [`flux_modular/codegen.py`](flux_modular/codegen.py) (`scripts/gen_pipeline.py`) turns a validated recipe into

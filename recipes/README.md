@@ -1,16 +1,16 @@
 # Recipes — training-free FLUX interventions as configs
 
 Each `*.yaml` here is a **recipe**: a declarative `(site, schedule, op, params)` config that
-[`FluxLens`](../flux_modular/lens.py) interprets into `flux_modular` payloads. The idea: most of our shipped
+[`RecipeRunner`](../flux_modular/runner.py) interprets into `flux_modular` payloads. The idea: most of our shipped
 `pipelines/` are the *same move* — install `FluxIntervention`, capture/replace/share/bias some `q/k/v` at some
 blocks for some steps — so we make that move **data**. A method becomes a row; a new configuration (including
 compositions the source papers never tried) is a new row; exploring the neighbourhood is a `sweep`.
 
 ```python
-from flux_modular.lens import FluxLens
+from flux_modular.runner import RecipeRunner
 from flux_modular.recipes import load_recipes
 
-lens = FluxLens()                      # loads FLUX.1-dev (Redux lazily)
+lens = RecipeRunner()                      # loads FLUX.1-dev (Redux lazily)
 recipes = load_recipes()               # {name: recipe} from this directory
 img = lens.run(recipes["freecontrol"], {"prompt": "a bronze statue bust",
                                          "ref_structure": Image.open("pose.png")}, S=0.3)
@@ -82,6 +82,6 @@ custom loops, not the attention payload — they aren't recipe-shaped and remain
 
 1. Copy an existing YAML, set `site` / `capture` / `condition` / `ops` / `params`, mark `validated: expressible`.
 2. If it needs an op the interpreter doesn't handle yet (`bias`, `substitute`, `append`/`share`, `blend`), wire
-   that op into `FluxLens.run` (they already exist in `flux_modular/attention.py`; the interpreter just needs to
+   that op into `RecipeRunner.run` (they already exist in `flux_modular/attention.py`; the interpreter just needs to
    route them — keep each addition small and fire-proofed).
 3. Validate in `explore.ipynb` (op-fired count == target blocks; eyeball the grid), then upgrade `validated`.

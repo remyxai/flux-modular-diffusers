@@ -1,4 +1,4 @@
-"""Recipe loading — a recipe is a declarative ``(site, schedule, op, params)`` config a :class:`FluxLens`
+"""Recipe loading — a recipe is a declarative ``(site, schedule, op, params)`` config a :class:`RecipeRunner`
 interprets. Shipped example recipes live in the repo-root ``recipes/`` directory (one YAML per method).
 
 A recipe dict:
