@@ -1,19 +1,20 @@
 name: identity_structure_material
 description: >-
-  Three-way with STRONG material — face-lock (PuLID identity) + reference structure (freecontrol Q-replace) +
-  reference material via K/V-SHARE (non-Redux, so material applies WITHOUT swamping the face). The capability the
-  Redux three-way could only accent. OPEN-WEIGHT.
+  Three-way — face-lock (PuLID identity) + reference structure (freecontrol Q-replace) + reference material
+  PALETTE via a step-gated K/V-SHARE. The K/V material is gated to a late window (condition.start_frac) so
+  identity + structure lock in first, then material lands as a palette accent WITHOUT swamping the face — the
+  capability both Redux and ungated K/V could only turn into a texture takeover. OPEN-WEIGHT.
 run: identity_composed
 requires: [pulid, rope, single_stream]
 inputs: [id_image, ref_structure, ref_appearance, prompt]
 site: {stream: single, last_n: 25}
 capture: {kind: lcd_q, sigma: 0.35, timestep: 661, source: ref_structure}
-condition: {kind: kv_appearance, source: ref_appearance, edge: 2, sigma: 0.35, timestep: 661, start_frac: 0.5}
+condition: {kind: kv_appearance, source: ref_appearance, edge: 2, sigma: 0.35, timestep: 661, start_frac: 0.4}
 ops:
   - {op: inject_identity}
   - {op: replace_q, tokens: image}
 params: {id_weight: 1.0, S: 0.5, schedule: cosine, guidance: 4.0}
-validated: expressible   # A100: guidance is NOT the lever — the K/V material swamps into a full-frame texture (no face, no pose) IDENTICALLY at guidance 4.0/6.5/8.0. The material dominates from step 0, so identity+structure never establish. condition.start_frac gates the K/V-append to a LATE window (content early, style late) so face+pose lock in first; re-spiking start_frac {0.0,0.4,0.6}. If material still swamps late -> three-way strong-material has no clean op with the current menu (honest ceiling); appearance_kv stays STANDALONE-only.
+validated: spike   # A100 (coffee->astronaut): start_frac step-gate RESCUES the three-way. Guidance was NOT the lever (K/V material swamps to a full-frame texture IDENTICALLY at guidance 4.0/6.5/8.0 because it dominates from step 0). Gating the K/V-append to a late window (start_frac=0.4) lets identity+structure establish first: face=0.75 (ArcFace, ~= two-way 0.76), pose d=0.84 (depth-corr), material=warm-tan palette accent. start_frac=0.0 reproduces the swamp (no-face); 0.6 also works (0.75/0.81) with slightly less material. HONEST: material is a PALETTE ACCENT, not a texture takeover — a coherent face and a strong material-of takeover are mutually exclusive. Brick (cool/grey) untested in the gate.
 license: open-weight — PuLID + FLUX.1-dev (non-commercial)
 pipeline: null
 paper: composition of 2404.16022 + 2511.05219 + 2603.26767

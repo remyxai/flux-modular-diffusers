@@ -72,6 +72,10 @@ loop isn't fake-shipped as a recipe; it's mapped here with the extension it need
 | story_reference | **batch** · `share` + Redux | ⚠️ recipe (expressible) | NEW — a character from a REFERENCE IMAGE across scenes; Redux appearance-level (look), not face-lock |
 | kv-edit | **edit** · `substitute` | ✅ recipe (spike) | RF-invert → substitute bg K/V via the shared pre-rope hook |
 | consistedit | **edit** · `blend` | ✅ recipe (spike) | **α (`consistency_strength`) dial: α≈0 = shape-change edit (validated); higher α progressively SUPPRESSES the edit** (output → source), it does **not** restyle. Default 0.0; use low α. |
+| identity | **identity** · `inject_identity` | ✅ recipe (spike) | 🔓 **open-weight** (PuLID) — face-lock from one photo via the residual seam; ArcFace 0.76 vs 0.07 baseline |
+| identity_story | **batch** · `inject_identity` + `share` | ✅ recipe (spike) | 🔓 open-weight — one face across comic panels (ArcFace 0.69–0.73; wide shots dilute the face — framing, not mechanism) |
+| identity_structure | **identity_composed** · `inject_identity` + `replace_q` | ✅ recipe (spike) | 🔓 open-weight — this face, in a reference composition (face 0.76 / pose 0.90) |
+| identity_structure_material | **identity_composed** · `inject_identity` + `replace_q` + step-gated K/V-share | ✅ recipe (spike) | 🔓 open-weight — **three-way**: face + pose + material PALETTE. `condition.start_frac=0.4` gates the K/V material LATE (content early, style late) so it accents without swamping the face (face 0.75 / pose 0.84 / warm-tan palette). Guidance was NOT the lever; ungated K/V and Redux both swamp to a texture takeover |
 | stitch | regional · `bias` + cutout | ⏳ | a cutout/composite **post-op** after the region-bind bias (needs a non-attention step) |
 | flowedit | — (custom ODE) | ✗ | inversion-free velocity trick, **not** an attention op — stays a standalone pipeline |
 
