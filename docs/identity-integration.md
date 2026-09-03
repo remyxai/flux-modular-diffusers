@@ -89,3 +89,26 @@ Phase 0/1 are mostly plumbing existing code (the ID stack + weights exist; the s
 `camap` correctness spike + the heavy-dep loader. Phase 2's value (the declarative three-way) is high; its risk is
 the interference, mitigated by the soft schedule we just shipped. Recommend **Phase 0 first** — one spike settles
 whether the shared seam preserves PuLID identity before building the recipe layer on top.
+
+## The garment axis — CatVTON, NOT Redux (validated 2026-09-03, `notebooks/dress_the_story.ipynb`)
+
+To put a *specific worn garment* on the story character, the right tool is a **try-on specialist, not the generator's
+appearance channel**. Redux transfers the reference's GLOBAL content, so a flat product-shot garment gets **cloned
+wholesale** — a floating jacket, `no-face` (measured: `redux_scale=0.9` → look-CLIP 0.97, ArcFace no-face). Redux
+dresses nobody.
+
+**CatVTON does.** Two-stage, two specialists (chained shipped pipelines, not one denoise):
+1. **`identity_story`** (FLUX.1-dev) → face-locked character across panels *(undressed)*.
+2. Free the generator, load **`remyxai/catvton-flux-modular`** (FLUX.1-Fill + catvton LoRA + segformer auto-masker);
+   for each panel `vton(person_image=panel, garment_image=garment)`. CatVTON inpaints **only** the clothing region
+   (auto agnostic mask covers upper garment + arms), so the **face is untouched** → identity survives the edit and
+   the garment is genuinely worn.
+
+Measured (auburn-haired character + leather aviator jacket): ArcFace through the edit **0.74–0.75** (vs 0.77–0.80
+before — face essentially unchanged), jacket-CLIP rises before→after; the fur collar transfers cleanly on clear
+half-body framing (clifftop panel = showcase). **Limitation** — the segformer auto-mask needs a clear standing/half-
+body torso: a large foreground occluder (a ship's wheel) or an unusual base garment (strappy overalls) yields a
+partial mask and a weak/recolored result (sailboat panel: jacket-CLIP flat 0.45→0.46). Fix = framing or a manual
+`mask`. This is the [[grounded_operands]] principle at the composition layer: a worn garment is a grounded operand
+the try-on model produces, not something the appearance channel can fabricate. Replaces the Redux "look" attempt in
+the story-compositions notebook.
