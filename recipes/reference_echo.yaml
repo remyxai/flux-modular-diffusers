@@ -1,0 +1,17 @@
+name: reference_echo
+description: >-
+  Reference reconstruction via the RESIDUAL/feature hook — capture a reference's block-output features and blend
+  the generation's toward them on a schedule. A strong pull (overrides the prompt at higher strength). This is the
+  seam identity methods plug into; for face-LOCK, swap the feature-echo for a trained ID adapter (PuLID), not this.
+run: residual
+requires: [rope, single_stream]
+inputs: [ref_structure, prompt]
+site: {stream: single, last_n: 12}
+capture: {kind: lcd_feat, sigma: 0.35, timestep: 661, source: ref_structure}
+condition: null
+ops:
+  - {op: inject_feat, tokens: image}
+params: {S: 0.3, schedule: cosine, last_single: 12, guidance: 6.5}
+validated: spike   # A100 seam spike: fires 84-192, depth-corr 0.36->0.96 at cut=0.3 (strong reference lock); soft cosine schedule
+pipeline: null
+paper: residual-hook seam (the mechanism PuLID-class identity injection uses)

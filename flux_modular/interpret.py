@@ -16,6 +16,7 @@ from diffusers.utils.torch_utils import randn_tensor
 
 from .attention import flux_intervention, last_single_attn_ids, edge_attn_ids, PAYLOAD_KEY
 from .plumbing import pack_latents, unpack_latents, prepare_latent_image_ids, calculate_shift
+from .residual import flux_residual, residual_block_ids, op_capture_feat, op_inject_feat
 
 
 # ------------------------------------------------------------------ shared helpers (adapter-driven)
@@ -157,6 +158,8 @@ def run_recipe(a, recipe, inputs, seed=0, **overrides):
         return _run_regional(a, recipe, inputs, P, seed)
     if mode == "composed":
         return _run_composed(a, recipe, inputs, P, seed)
+    if mode == "residual":
+        return _run_residual(a, recipe, inputs, P, seed)
     if mode == "batch":
         return _run_batch(a, recipe, inputs, P, seed)
     if mode == "edit":
@@ -268,6 +271,41 @@ def _run_composed(a, recipe, inputs, P, seed):
 
     latents, img_ids = _noise_latents(a, 1, seed)
     out = _denoise(a, latents, enc, base_pooled, img_ids, float(P.get("guidance", 3.5)), payload)
+    return _decode(a, out)[0]
+
+
+def _run_residual(a, recipe, inputs, P, seed):
+    """Residual/feature hook: capture a reference's block-output features, then blend the generation's features
+    toward them on a schedule (the seam identity/PuLID plugs into). Strong pull — overrides the prompt at higher
+    strength. inputs = {ref_structure, prompt}."""
+    ids = residual_block_ids(a.tr, int(P.get("last_single", 12)))
+    cap = recipe.get("capture") or {}
+    sigma = float(P.get("sigma", cap.get("sigma", 0.35)))
+    t_star = int(cap.get("timestep", 661))
+
+    # capture reference block features at a mid timestep (LCD noise-free latent)
+    bank = {}
+    xt = ((1.0 - sigma) * _encode_x0(a, inputs[cap.get("source", "ref_structure")])).to(a.dtype)
+    pe0, pooled0 = a.encode_prompt("")
+    tids0 = _text_ids(a, pe0.shape[1])
+    iid = prepare_latent_image_ids(a.H // 16, a.W // 16, a.device, a.dtype)
+    g0 = torch.full((1,), 3.5, device=a.device, dtype=a.dtype)
+    ts0 = torch.full((1,), t_star / 1000, device=a.device, dtype=a.dtype)
+    with flux_intervention(a.tr), flux_residual(a.tr, ids, op_capture_feat(bank)):
+        a.tr(hidden_states=xt, timestep=ts0, guidance=g0, pooled_projections=pooled0, encoder_hidden_states=pe0,
+             txt_ids=tids0, img_ids=iid, return_dict=False)
+
+    # generate, injecting the banked features on the structure schedule (cosine/linear/cutoff)
+    pe, pooled = a.encode_prompt(inputs["prompt"])
+    st = {"step": 0}
+
+    def payload(i):
+        st["step"] = i
+        return None
+
+    latents, img_ids = _noise_latents(a, 1, seed)
+    with flux_residual(a.tr, ids, op_inject_feat(bank, _replace_schedule(P, a.steps), st)):
+        out = _denoise(a, latents, pe, pooled, img_ids, float(P.get("guidance", 6.5)), payload)
     return _decode(a, out)[0]
 
 

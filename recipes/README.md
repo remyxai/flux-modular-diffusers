@@ -54,8 +54,8 @@ test. Until then these recipes are **FLUX-family**.
 
 ## Method coverage
 
-The interpreter has five run paths — **default** (capture-Q → Redux → replace-Q), **regional** (multi-prompt +
-bias mask), **composed** (structure + regional in one pass), **batch** (frame-shared K/V), and **edit** (RF-inversion → substitute). A method that needs a *fifth*
+The interpreter has six run paths — **default** (capture-Q → Redux → replace-Q), **regional** (multi-prompt +
+bias mask), **composed** (structure + regional in one pass), **residual** (block-output feature hook), **batch** (frame-shared K/V), and **edit** (RF-inversion → substitute). A method that needs a *fifth*
 loop isn't fake-shipped as a recipe; it's mapped here with the extension it needs, so "add a recipe" stays honest
 (a recipe should run through the interpreter, not lie about it).
 
@@ -66,6 +66,7 @@ loop isn't fake-shipped as a recipe; it's mapped here with the extension it need
 | appearance_mix | default · multi-Redux | ⚠️ recipe (expressible) | NEW multi-donor — mix material/style from 2+ refs, per-donor sweepable scales |
 | structure_appearance | default · `replace_q` + Redux | ✅ recipe (spike) | — |
 | structure_regional | **composed** · `replace_q` + `bias` | ⚠️ recipe (expressible) | NEW composition — reference layout + per-region prompts in one pass; validate before trusting |
+| reference_echo | **residual** · `inject_feat` | ✅ recipe (spike) | NEW seam — block-output feature hook (forward-hooks, not attention). Strong reference reconstruction; the seam identity/PuLID plugs into |
 | regional | regional · `bias` | ✅ recipe (spike) | — |
 | story-diffusion | **batch** · `share` | ✅ recipe (spike) | returns a list of frames |
 | story_reference | **batch** · `share` + Redux | ⚠️ recipe (expressible) | NEW — a character from a REFERENCE IMAGE across scenes; Redux appearance-level (look), not face-lock |

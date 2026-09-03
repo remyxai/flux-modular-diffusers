@@ -18,11 +18,12 @@ _HEADER = (
 
 def build():
     parts = [_HEADER]
-    for f in ("plumbing.py", "attention.py", "interpret.py"):
+    for f in ("plumbing.py", "attention.py", "residual.py", "interpret.py"):
         parts.append(f"\n# ============================== {f} ==============================\n")
         src = open(os.path.join(_HERE, f)).read()
         # flat build = one module: drop intra-package relative imports (symbols are already concatenated above)
-        src = "\n".join(l for l in src.splitlines() if not l.startswith(("from .attention import", "from .plumbing import")))
+        src = "\n".join(l for l in src.splitlines()
+                        if not l.startswith(("from .attention import", "from .plumbing import", "from .residual import")))
         parts.append(src)
     return "".join(parts)
 
