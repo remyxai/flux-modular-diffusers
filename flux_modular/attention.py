@@ -140,7 +140,11 @@ def op_append(bank, ids=None):
     def _fn(q, k, v, n_txt, attn, pl):
         if (ids is None or id(attn) in ids) and id(attn) in bank:
             rk, rv = bank[id(attn)]
-            return q, torch.cat([k, rk.to(k)], 1), torch.cat([v, rv.to(v)], 1)
+            rk, rv = rk.to(k), rv.to(v)
+            if rk.shape[0] == 1 and k.shape[0] > 1:   # donor banked from one ref image; broadcast over a batch (story panels)
+                rk = rk.expand(k.shape[0], *rk.shape[1:])
+                rv = rv.expand(v.shape[0], *rv.shape[1:])
+            return q, torch.cat([k, rk], 1), torch.cat([v, rv], 1)
         return q, k, v
     return _fn
 
