@@ -162,6 +162,8 @@ def run_recipe(a, recipe, inputs, seed=0, **overrides):
         return _run_residual(a, recipe, inputs, P, seed)
     if mode == "identity":
         return _run_identity(a, recipe, inputs, P, seed)
+    if mode == "identity_composed":
+        return _run_identity_composed(a, recipe, inputs, P, seed)
     if mode == "batch":
         return _run_batch(a, recipe, inputs, P, seed)
     if mode == "edit":
@@ -325,6 +327,42 @@ def _run_identity(a, recipe, inputs, P, seed):
     latents, img_ids = _noise_latents(a, 1, seed)
     with flux_residual(a.tr, set(camap), fn):
         out = _denoise(a, latents, pe, pooled, img_ids, float(P.get("guidance", 4.0)), lambda i: None)
+    return _decode(a, out)[0]
+
+
+def _run_identity_composed(a, recipe, inputs, P, seed):
+    """Three-way in one denoise: identity (PuLID residual) + structure (freecontrol Q-replace, soft-scheduled) +
+    appearance (multi-donor Redux). All three mechanisms are independent (block-output residual / attention pre-rope
+    / encoder conditioning) and coexist around one loop. OPEN-WEIGHT. inputs = {id_image, ref_structure,
+    ref_appearance, prompt}."""
+    from .identity import load_pulid_encoder, id_embedding_from, pulid_camap, op_identity
+    # identity
+    pid_enc, pid_mod = load_pulid_encoder(a.device, a.dtype)
+    id_embedding = id_embedding_from(pid_enc, pid_mod, inputs["id_image"])
+    camap = pulid_camap(a.tr)
+    idfn = op_identity(pid_enc, id_embedding, float(P.get("id_weight", 1.0)), camap)
+    # structure (capture + soft-scheduled replace_q)
+    ids = _sites(a, recipe.get("site", {"stream": "single", "last_n": int(P.get("last_n", 25))}))
+    bank = {}
+    cap = recipe.get("capture")
+    if cap:
+        bank = _capture_q(a, inputs[cap.get("source", "ref_structure")], P.get("sigma", cap.get("sigma", 0.35)),
+                          int(cap.get("timestep", 661)), ids)
+    replace = any(o.get("op") == "replace_q" for o in recipe.get("ops", []))
+    st = {"step": 0}
+    pre_rope = _replace_q_op(a, bank, ids, st, _replace_schedule(P, a.steps))
+    # appearance (multi-donor Redux) + content
+    pe, pooled = a.encode_prompt(inputs["prompt"])
+    rx = _redux_condition(a, recipe, inputs, P)
+    enc = torch.cat([rx, pe], dim=1) if rx is not None else pe
+
+    def payload(i):
+        st["step"] = i
+        return {PAYLOAD_KEY: {"pre_rope": pre_rope, "n_txt": int(enc.shape[1])}} if replace else None
+
+    latents, img_ids = _noise_latents(a, 1, seed)
+    with flux_residual(a.tr, set(camap), idfn):
+        out = _denoise(a, latents, enc, pooled, img_ids, float(P.get("guidance", 4.0)), payload)
     return _decode(a, out)[0]
 
 

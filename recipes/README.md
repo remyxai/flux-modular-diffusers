@@ -54,8 +54,7 @@ test. Until then these recipes are **FLUX-family**.
 
 ## Method coverage
 
-The interpreter has seven run paths — **default** (capture-Q → Redux → replace-Q), **regional** (multi-prompt +
-bias mask), **composed** (structure + regional in one pass), **residual** (block-output feature hook), **identity** (PuLID face-lock, open-weight), **batch** (frame-shared K/V), and **edit** (RF-inversion → substitute). A method that needs a *fifth*
+The interpreter has eight run paths — **default**, **regional**, **composed** (structure+regional), **residual** (block-output feature hook), **identity** (PuLID face-lock, open-weight), **identity_composed** (identity+structure+appearance three-way), **batch** (frame-shared K/V), and **edit** (RF-inversion → substitute). A method that needs a *fifth*
 loop isn't fake-shipped as a recipe; it's mapped here with the extension it needs, so "add a recipe" stays honest
 (a recipe should run through the interpreter, not lie about it).
 
