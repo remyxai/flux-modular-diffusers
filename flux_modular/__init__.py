@@ -37,8 +37,11 @@ __all__ = [
 
 
 def __getattr__(name):
-    # lazy: `from flux_modular import FluxLens` without paying the diffusers import at package load
+    # lazy: import the heavy (diffusers-dependent) symbols only on first use, not at package load
     if name == "FluxLens":
         from .lens import FluxLens
         return FluxLens
+    if name in ("run_recipe", "ComponentsAdapter"):
+        from . import interpret
+        return getattr(interpret, name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
