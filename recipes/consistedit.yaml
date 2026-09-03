@@ -8,7 +8,7 @@ capture: {kind: rf_invert}      # per-step (q,k,v) of the single blocks, keyed (
 condition: null
 ops:
   - {op: blend, tokens: vision}   # pre_rope: lerp source vision Q/K (structure window) + V (keep mask)
-params: {guidance: 3.5, src_guidance: 1.0, consistency_strength: 0.3, max_sequence_length: 512}
-validated: expressible   # A100: OP FIRES + structure preserved, but OVER-LOCKS at consistency_strength=0.4 (edit suppressed) -> sweep alpha lower (~0.1-0.2) before trusting
+params: {guidance: 3.5, src_guidance: 1.0, consistency_strength: 0.0, max_sequence_length: 512}   # 0 = allow shape change (edit); raise toward 0.3-0.5 to lock source geometry for restyle/recolor edits
+validated: spike   # A100 alpha sweep: edit applies at alpha~0 (bronze-knight helmet + structure/bg preserved); higher alpha locks source shape (dial). Port confirmed correct.
 pipeline: pipelines/consistedit
 paper: https://arxiv.org/abs/2510.17803
