@@ -9,6 +9,6 @@ condition: null
 ops:
   - {op: substitute, tokens: background}    # pre_rope: swap cached background K/V per step
 params: {guidance: 3.5, src_guidance: 1.0, max_sequence_length: 512}
-validated: expressible   # faithful port of pipelines/kv-edit via the shared FluxIntervention pre-rope hook — GPU-validate before trusting
+validated: spike   # A100: background pixel-corr 1.00 (vs 0.52 whole-regen), masked region edited
 pipeline: pipelines/kv-edit
 paper: https://arxiv.org/abs/2502.17363

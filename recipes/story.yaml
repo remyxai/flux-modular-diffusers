@@ -9,6 +9,6 @@ condition: {kind: story, share_ratio: 0.3, share_start_frac: 0.35}
 ops:
   - {op: share, tokens: image}    # post_rope: append a sampled pool of all frames' K/V
 params: {guidance: 3.5, share_ratio: 0.3, share_start_frac: 0.35}
-validated: expressible   # faithful port of pipelines/story-diffusion; validate via explore.ipynb (returns a list of frames)
+validated: spike   # A100: character consistent; sharing raises frame-pair CLIP 0.75->0.83
 pipeline: pipelines/story-diffusion
 paper: https://arxiv.org/abs/2405.01434

@@ -65,10 +65,10 @@ loop isn't fake-shipped as a recipe; it's mapped here with the extension it need
 | freecontrol | default · `replace_q` | ✅ recipe (block-parity) | — |
 | appearance | default · Redux | ✅ recipe (spike) | — |
 | structure_appearance | default · `replace_q` + Redux | ✅ recipe (spike) | — |
-| regional | regional · `bias` | ✅ recipe (expressible) | — |
-| story-diffusion | **batch** · `share` | ✅ recipe (expressible) | returns a list of frames |
-| kv-edit | **edit** · `substitute` | ✅ recipe (expressible) | RF-invert → substitute bg K/V via the shared pre-rope hook |
-| consistedit | **edit** · `blend` | ✅ recipe (expressible) | RF-invert → mask-weighted vision-token blend with a structure window |
+| regional | regional · `bias` | ✅ recipe (spike) | — |
+| story-diffusion | **batch** · `share` | ✅ recipe (spike) | returns a list of frames |
+| kv-edit | **edit** · `substitute` | ✅ recipe (spike) | RF-invert → substitute bg K/V via the shared pre-rope hook |
+| consistedit | **edit** · `blend` | ⚠️ recipe (expressible) | fires + preserves structure, but over-locks at α=0.4 — sweep `consistency_strength` lower |
 | stitch | regional · `bias` + cutout | ⏳ | a cutout/composite **post-op** after the region-bind bias (needs a non-attention step) |
 | flowedit | — (custom ODE) | ✗ | inversion-free velocity trick, **not** an attention op — stays a standalone pipeline |
 
