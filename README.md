@@ -32,6 +32,7 @@ Each `pipelines/<name>/` here is the **source** for a HF Hub repo (`remyxai/<nam
 | [panorama](pipelines/panorama) | processing | ultra-wide / panoramic generation (fused windows, clean-room) | [panorama-flux-modular](https://huggingface.co/remyxai/panorama-flux-modular) | [arXiv:2302.08113](https://arxiv.org/abs/2302.08113) | [omerbt/MultiDiffusion](https://github.com/omerbt/MultiDiffusion) |
 | [stitch](pipelines/stitch) | control | hard bounding-box object placement (Region Binding + cutout/composite, clean-room) | [stitch-flux-modular](https://huggingface.co/remyxai/stitch-flux-modular) | [arXiv:2509.26644](https://arxiv.org/abs/2509.26644) | [ExplainableML/Stitch](https://github.com/ExplainableML/Stitch) |
 | [appearance-transfer](pipelines/appearance-transfer) | appearance | reference appearance/texture onto a source, structure preserved (Depth inversion + mask-weighted Redux + KV-share, clean-room) | [appearance-transfer-flux-modular](https://huggingface.co/remyxai/appearance-transfer-flux-modular) | [arXiv:2603.26767](https://arxiv.org/abs/2603.26767) | clean-room (no code released) |
+| [freecontrol](pipelines/freecontrol) | control | reference-image structural/layout control, no depth map or ControlNet (one-step Query extraction, clean-room) | [freecontrol-flux-modular](https://huggingface.co/remyxai/freecontrol-flux-modular) | [arXiv:2511.05219](https://arxiv.org/abs/2511.05219) | clean-room (no code released) |
 
 ## How this repo works
 

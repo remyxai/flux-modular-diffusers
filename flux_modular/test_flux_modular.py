@@ -10,6 +10,7 @@ from flux_modular import (
     pack_latents, unpack_latents, prepare_latent_image_ids, calculate_shift,
     FluxIntervention, flux_intervention, edge_blocks, PAYLOAD_KEY,
     op_append, op_capture_image_kv, op_substitute, op_blend,
+    op_capture_q, op_replace_q, last_single_attn_ids,
 )
 
 
@@ -64,6 +65,17 @@ def test_op_builders_return_callables():
     assert callable(op_capture_image_kv({}, 4096))
     assert callable(op_substitute(None, None, None))
     assert callable(op_blend(None, None, None, 0.5))
+
+
+def test_freecontrol_ops():
+    class _Blk:
+        def __init__(self): self.attn = object()
+    class _T:
+        transformer_blocks = [_Blk() for _ in range(19)]
+        single_transformer_blocks = [_Blk() for _ in range(38)]
+    ids = last_single_attn_ids(_T(), n=25)
+    assert len(ids) == 25
+    assert callable(op_capture_q({})) and callable(op_replace_q({}))
 
 
 if __name__ == "__main__":
