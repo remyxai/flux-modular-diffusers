@@ -28,7 +28,7 @@ side-by-side comparison grid.
 | `inputs` | required `run()` inputs (`prompt` + any `ref_*` image keys) |
 | `site` | where: `{stream: single, last_n: N}` or `{stream: both, edge: n}` |
 | `capture` | optional pre-pass banking reference Q: `{kind: lcd_q, sigma, timestep, source}` |
-| `condition` | optional conditioning added to the prompt: `{kind: redux, source}` (single donor) or `{kind: redux, sources: [{image, scale}, ...]}` (multi-donor, per-donor `redux_scale_<image>`) |
+| `condition` | optional conditioning: `{kind: redux, source, mask?, mask_floor?}` (single, optional mask-weighting = material-not-shape) or `{kind: redux, sources: [{image, scale, mask?}, ...]}` (multi-donor, per-donor `redux_scale_<image>`) |
 | `ops` | the intervention: `[{op: replace_q, tokens: image}, ...]` |
 | `params` | default knobs (`S` = structure-inject fraction, `schedule` = `cutoff`/`linear`/`cosine` for hard vs smooth structure release, `redux_scale`, `guidance`, `last_n`, `sigma`) |
 | `validated` | **honesty flag** — see below |

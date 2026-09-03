@@ -103,6 +103,26 @@ def _noise_latents(a, batch, seed):
 
 
 # ------------------------------------------------------------------ multi-donor Redux conditioning
+def _mask_weight_siglip(sig, mask, floor):
+    """Down-weight SigLIP patch tokens outside ``mask`` (foreground kept at 1, background at ``floor``) so Redux
+    focuses on the masked region's material rather than the whole reference (the appearance-transfer technique).
+    ``mask`` is an HxW image/array in [0,1]; None -> whole-image (unchanged)."""
+    if mask is None:
+        return sig
+    p = sig.shape[1]
+    g = int(round(p ** 0.5))
+    if g * g != p:
+        return sig
+    import torch.nn.functional as F
+    m = mask.convert("L") if hasattr(mask, "convert") else mask
+    m = torch.as_tensor(np.asarray(m), dtype=torch.float32)
+    if m.ndim == 3:
+        m = m.mean(-1)
+    m = m[None, None] / (m.max() + 1e-6)
+    m = F.interpolate(m, size=(g, g), mode="area").reshape(1, p, 1).to(sig.device, sig.dtype)
+    return sig * (float(floor) + (1.0 - float(floor)) * m)
+
+
 def _redux_condition(a, recipe, inputs, P):
     """Concatenated (scaled) Redux image embeds for the recipe's ``condition``, or None. Supports a single source
     ``{kind: redux, source: ref_appearance}`` (scale from ``redux_scale``) OR multiple donors
@@ -114,12 +134,15 @@ def _redux_condition(a, recipe, inputs, P):
     sources = cond.get("sources")
     if sources is None:
         src = cond.get("source", "ref_appearance")
-        return a.redux_embed(inputs[src], scale=float(P.get("redux_scale", 1.0)))
+        mask = inputs.get(cond["mask"]) if cond.get("mask") else None
+        return a.redux_embed(inputs[src], scale=float(P.get("redux_scale", 1.0)),
+                             mask=mask, mask_floor=float(cond.get("mask_floor", 0.1)))
     embs = []
     for sd in sources:
         key = sd["image"]
         scale = float(P.get(f"redux_scale_{key}", sd.get("scale", 1.0)))
-        embs.append(a.redux_embed(inputs[key], scale=scale))
+        mask = inputs.get(sd["mask"]) if sd.get("mask") else None
+        embs.append(a.redux_embed(inputs[key], scale=scale, mask=mask, mask_floor=float(sd.get("mask_floor", 0.1))))
     return torch.cat(embs, dim=1) if embs else None
 
 
@@ -549,8 +572,9 @@ class ComponentsAdapter:
         emb = c.text_encoder_2(t5.to(c.text_encoder_2.device))[0].to(self.device, self.dtype)
         return emb, pooled
 
-    def redux_embed(self, img, scale=1.0):
+    def redux_embed(self, img, scale=1.0, mask=None, mask_floor=0.1):
         c = self._c
         fe = c.feature_extractor(images=img, return_tensors="pt").to(c.image_encoder.device)
         sig = c.image_encoder(pixel_values=fe.pixel_values.to(c.image_encoder.dtype)).last_hidden_state
+        sig = _mask_weight_siglip(sig, mask, mask_floor)
         return c.image_embedder(sig).image_embeds.to(self.device, self.dtype) * float(scale)

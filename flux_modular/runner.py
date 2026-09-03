@@ -57,7 +57,8 @@ class RecipeRunner:
                                                 num_images_per_prompt=1, max_sequence_length=L)
         return pe, pooled
 
-    def redux_embed(self, img, scale=1.0):
+    def redux_embed(self, img, scale=1.0, mask=None, mask_floor=0.1):
+        from .interpret import _mask_weight_siglip
         if self._redux is None:
             from transformers import SiglipVisionModel, SiglipImageProcessor
             from diffusers.pipelines.flux.modeling_flux import ReduxImageEncoder
@@ -69,6 +70,7 @@ class RecipeRunner:
         ienc, feat, emb = self._redux
         fe = feat(images=img, return_tensors="pt").to(self.device)
         sig = ienc(pixel_values=fe.pixel_values.to(self.dtype)).last_hidden_state
+        sig = _mask_weight_siglip(sig, mask, mask_floor)
         return emb(sig).image_embeds.to(self.device, self.dtype) * float(scale)
 
     # ---- run one recipe / sweep a grid ----
