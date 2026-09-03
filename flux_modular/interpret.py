@@ -429,7 +429,17 @@ def _run_batch(a, recipe, inputs, P, seed):
     def payload(i):
         return {PAYLOAD_KEY: {"post_rope": _share}} if (share_on and i >= start_step) else None
 
-    out = _denoise(a, latents, pe, pooled, img_ids, float(P.get("guidance", 3.5)), payload)
+    # optional: FACE-LOCK the character across all frames (PuLID identity residual) — id_image -> a comic panel
+    import contextlib
+    idctx = contextlib.nullcontext()
+    if inputs.get("id_image") is not None:
+        from .identity import load_pulid_encoder, id_embedding_from, pulid_camap, op_identity
+        pid_enc, pid_mod = load_pulid_encoder(a.device, a.dtype)
+        id_embedding = id_embedding_from(pid_enc, pid_mod, inputs["id_image"])
+        camap = pulid_camap(a.tr)
+        idctx = flux_residual(a.tr, set(camap), op_identity(pid_enc, id_embedding, float(P.get("id_weight", 1.0)), camap))
+    with idctx:
+        out = _denoise(a, latents, pe, pooled, img_ids, float(P.get("guidance", 3.5)), payload)
     return _decode(a, out)
 
 

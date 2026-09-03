@@ -48,8 +48,12 @@ def pulid_camap(transformer, double_interval=2, single_interval=4):
 
 
 def op_identity(encoder, id_embedding, id_weight, camap):
-    """flux_residual fn: ``h += id_weight * pulid_ca[camap[id(block)]](id_embedding, h)`` — the PuLID residual."""
+    """flux_residual fn: ``h += id_weight * pulid_ca[camap[id(block)]](id_embedding, h)`` — the PuLID residual.
+    Batch-safe: the single-face id_embedding is broadcast over a multi-frame batch (e.g. story panels)."""
     def fn(h, bid):
-        add = id_weight * encoder.pulid_ca[camap[bid]](id_embedding, h.to(id_embedding.dtype))
+        ide = id_embedding
+        if ide.shape[0] == 1 and h.shape[0] > 1:
+            ide = ide.expand(h.shape[0], -1, -1)
+        add = id_weight * encoder.pulid_ca[camap[bid]](ide, h.to(ide.dtype))
         return h + add.to(h.dtype)
     return fn

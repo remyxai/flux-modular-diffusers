@@ -1,0 +1,18 @@
+name: identity_story
+description: >-
+  Comic panels with a FACE-LOCKED character — the reference face (PuLID identity) across scenes, kept consistent by
+  cross-frame K/V share. identity ⊕ story. OPEN-WEIGHT. Returns a list of panels.
+run: batch
+requires: [pulid, single_stream]
+inputs: [id_image, scene_prompts]   # scene_prompts: ["...#caption", "[NC] a scene without the character", ...]
+site: {stream: all}
+capture: null
+condition: {kind: story, share_ratio: 0.3, share_start_frac: 0.35}
+ops:
+  - {op: share, tokens: image}
+  - {op: inject_identity}
+params: {id_weight: 1.0, guidance: 4.0, share_ratio: 0.3, share_start_frac: 0.35}
+validated: expressible   # identity across batch frames (batch-safe op_identity) — validate via the comic notebook
+license: open-weight — PuLID + FLUX.1-dev (non-commercial)
+pipeline: null
+paper: composition of 2404.16022 + 2405.01434
