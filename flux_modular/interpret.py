@@ -448,6 +448,16 @@ def _run_identity_composed(a, recipe, inputs, P, seed):
     return _decode(a, out)[0]
 
 
+def _chain_post(ops):
+    """Compose several post_rope ops into one ``(q,k,v,n_txt,attn,pl)->(q,k,v)`` — each runs in order on the
+    running K/V. Lets a payload carry more than one post_rope contribution (e.g. frame-share + material append)."""
+    def fn(q, k, v, n_txt, attn, pl):
+        for op in ops:
+            q, k, v = op(q, k, v, n_txt, attn, pl)
+        return q, k, v
+    return fn
+
+
 def _run_batch(a, recipe, inputs, P, seed):
     cond = recipe.get("condition") or {}
     share_ratio = float(P.get("share_ratio", cond.get("share_ratio", 0.3)))
@@ -485,8 +495,24 @@ def _run_batch(a, recipe, inputs, P, seed):
         pv = pv.unsqueeze(0).expand(B, pv.shape[0], h, D)
         return q, torch.cat([k, pk], dim=1), torch.cat([v, pv], dim=1)
 
+    # optional: one SHARED material PALETTE across every panel — gated K/V-share of a reference (kv_appearance),
+    # composed with the frame-share. Gated LATE (condition.start_frac) so the character/scene establish first, then
+    # the palette lands as an accent — the same content-early/style-late rule that rescued the identity three-way.
+    append_op = _kv_appearance(a, recipe, inputs, P)
+
     def payload(i):
-        return {PAYLOAD_KEY: {"post_rope": _share}} if (share_on and i >= start_step) else None
+        ops = []
+        if share_on and i >= start_step:
+            ops.append(_share)
+        ap = append_op(i) if append_op is not None else None
+        if ap is not None:
+            ops.append(ap)
+        if not ops:
+            return None
+        p = {"post_rope": ops[0] if len(ops) == 1 else _chain_post(tuple(ops))}
+        if ap is not None:
+            p["n_txt"] = int(pe.shape[1])   # material append needs the text offset; share ignores it
+        return {PAYLOAD_KEY: p}
 
     # optional: FACE-LOCK the character across all frames (PuLID identity residual) — id_image -> a comic panel
     import contextlib

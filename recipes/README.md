@@ -70,6 +70,7 @@ loop isn't fake-shipped as a recipe; it's mapped here with the extension it need
 | regional | regional · `bias` | ✅ recipe (spike) | — |
 | story-diffusion | **batch** · `share` | ✅ recipe (spike) | returns a list of frames |
 | story_reference | **batch** · `share` + Redux | ⚠️ recipe (expressible) | NEW — a character from a REFERENCE IMAGE across scenes; Redux appearance-level (look), not face-lock |
+| identity_story_material | **batch** · `inject_identity` + `share` + step-gated K/V-share | ⚠️ recipe (expressible) | 🔓 open-weight — **art-directed story**: face-locked character + ONE shared material PALETTE across every panel. Composes identity_story with the `start_frac`-gated material (identity_structure_material spike); `_run_batch` now carries frame-share + gated material as a composed post_rope. Spike to confirm palette reads without diluting the per-panel face |
 | kv-edit | **edit** · `substitute` | ✅ recipe (spike) | RF-invert → substitute bg K/V via the shared pre-rope hook |
 | consistedit | **edit** · `blend` | ✅ recipe (spike) | **α (`consistency_strength`) dial: α≈0 = shape-change edit (validated); higher α progressively SUPPRESSES the edit** (output → source), it does **not** restyle. Default 0.0; use low α. |
 | identity | **identity** · `inject_identity` | ✅ recipe (spike) | 🔓 **open-weight** (PuLID) — face-lock from one photo via the residual seam; ArcFace 0.76 vs 0.07 baseline |

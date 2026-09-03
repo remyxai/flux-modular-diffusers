@@ -1,0 +1,15 @@
+name: identity_story_material
+description: >-
+  Art-directed story — a face-locked character (PuLID identity) across scene panels (frame-shared K/V) with ONE
+  shared material PALETTE applied to every panel via a step-gated K/V-share. The palette is gated LATE
+  (condition.start_frac) so character + scene establish first, then the material lands as a consistent accent
+  across the whole strip — content early, style late, at story scale. OPEN-WEIGHT.
+run: batch
+requires: [pulid, rope, single_stream]
+inputs: [id_image, scene_prompts, ref_appearance]
+condition: {kind: kv_appearance, source: ref_appearance, edge: 2, sigma: 0.35, timestep: 661, start_frac: 0.4}
+params: {id_weight: 1.0, share_ratio: 0.3, share_start_frac: 0.35, guidance: 3.5}
+validated: expressible   # composes two VALIDATED primitives: identity_story (face across panels) + the start_frac-gated kv_appearance material palette (identity_structure_material spike). Extended _run_batch to carry frame-share + gated material append (composed post_rope). Spike to confirm the palette reads across panels WITHOUT diluting the per-panel face; brick/cool untested.
+license: open-weight — PuLID + FLUX.1-dev (non-commercial)
+pipeline: null
+paper: composition of 2404.16022 (story-diffusion frame-share) + PuLID + 2603.26767 (K/V material)
