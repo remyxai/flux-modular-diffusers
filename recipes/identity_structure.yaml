@@ -1,0 +1,18 @@
+name: identity_structure
+description: >-
+  Two-way — face-lock (PuLID identity) + reference structure (freecontrol Q-replace, soft-scheduled): this FACE in
+  this COMPOSITION. VALIDATED on A100. OPEN-WEIGHT (PuLID).
+run: identity_composed
+requires: [pulid, rope, single_stream]
+inputs: [id_image, ref_structure, prompt]
+site: {stream: single, last_n: 25}
+capture: {kind: lcd_q, sigma: 0.35, timestep: 661, source: ref_structure}
+condition: null   # no appearance term
+ops:
+  - {op: inject_identity}
+  - {op: replace_q, tokens: image}
+params: {id_weight: 1.0, S: 0.5, schedule: cosine, guidance: 4.0}
+validated: spike   # A100: id=1, S=0.5 -> ArcFace 0.756 (identity held) + depth-corr 0.907 (structure held), one pass
+license: open-weight — PuLID + FLUX.1-dev (non-commercial)
+pipeline: null
+paper: composition of 2404.16022 + 2511.05219
