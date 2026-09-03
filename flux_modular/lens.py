@@ -358,11 +358,13 @@ class FluxLens:
 
             cap = _cap if active else None
             with flux_intervention(self.tr):
+                # inversion builds ONLY the latent trajectory (no capture -> one step of tokens live at a time);
+                # the edit loop re-runs the source at step i to capture that step's vision tokens, then clears.
                 lat = [None] * (self.steps + 1); lat[self.steps] = latents.clone()
                 for i in range(len(timesteps) - 1, -1, -1):
                     t = timesteps[i]; sched._init_step_index(t)
                     s_i, s_ip1 = sched.sigmas[sched.step_index], sched.sigmas[sched.step_index + 1]
-                    v = _vel(lat[i + 1], src_pe, src_pooled, src_tids, src_g, t, cap, src_pe.shape[1], i)
+                    v = _vel(lat[i + 1], src_pe, src_pooled, src_tids, src_g, t, None, src_pe.shape[1], i)
                     lat[i] = (lat[i + 1].to(torch.float32) + (s_i - s_ip1) * v.to(torch.float32)).to(self.dtype)
                 latents = lat[0].clone()
                 for i, t in enumerate(timesteps):
