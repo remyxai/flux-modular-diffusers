@@ -1,0 +1,18 @@
+name: identity
+description: >-
+  Face-lock from a reference photo — PuLID ID injection routed through the residual seam. OPEN-WEIGHT: uses PuLID's
+  trained ID adapter (guozinan/PuLID) + InsightFace/facexlib/EVA-CLIP — NOT training-free. Phase-0 validated: the
+  flux_residual seam is bit-identical to PuLID's own injection (pixel MAD 0.00), ArcFace-sim 0.76 vs 0.07 baseline.
+run: identity
+requires: [pulid]   # open-weight: PuLID checkpoint + InsightFace/facexlib/EVA-CLIP; deps fetched on first use
+inputs: [id_image, prompt]
+site: {blocks: pulid}   # double i%2 + single i%4 (PuLID's schedule)
+capture: null
+condition: null
+ops:
+  - {op: inject_identity}
+params: {id_weight: 1.0, guidance: 4.0}
+validated: spike   # Phase-0 A100: seam == PuLID counter bit-identical (MAD 0.00); ArcFace 0.763 vs 0.07 no-id baseline
+license: open-weight — PuLID (Apache code + weights) + FLUX.1-dev (non-commercial)
+pipeline: pipelines/pulid
+paper: https://arxiv.org/abs/2404.16022

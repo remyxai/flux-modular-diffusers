@@ -160,6 +160,8 @@ def run_recipe(a, recipe, inputs, seed=0, **overrides):
         return _run_composed(a, recipe, inputs, P, seed)
     if mode == "residual":
         return _run_residual(a, recipe, inputs, P, seed)
+    if mode == "identity":
+        return _run_identity(a, recipe, inputs, P, seed)
     if mode == "batch":
         return _run_batch(a, recipe, inputs, P, seed)
     if mode == "edit":
@@ -306,6 +308,23 @@ def _run_residual(a, recipe, inputs, P, seed):
     latents, img_ids = _noise_latents(a, 1, seed)
     with flux_residual(a.tr, ids, op_inject_feat(bank, _replace_schedule(P, a.steps), st)):
         out = _denoise(a, latents, pe, pooled, img_ids, float(P.get("guidance", 6.5)), payload)
+    return _decode(a, out)[0]
+
+
+def _run_identity(a, recipe, inputs, P, seed):
+    """Face-lock from a reference photo — PuLID ID injection via the residual seam (Phase-0 validated bit-identical
+    to PuLID). OPEN-WEIGHT (PuLID's trained ID adapter + InsightFace/facexlib/EVA-CLIP), NOT training-free.
+    inputs = {id_image, prompt}."""
+    from .identity import load_pulid_encoder, id_embedding_from, pulid_camap, op_identity
+    enc, mod = load_pulid_encoder(a.device, a.dtype)
+    id_embedding = id_embedding_from(enc, mod, inputs["id_image"])
+    camap = pulid_camap(a.tr)
+    fn = op_identity(enc, id_embedding, float(P.get("id_weight", 1.0)), camap)
+
+    pe, pooled = a.encode_prompt(inputs["prompt"])
+    latents, img_ids = _noise_latents(a, 1, seed)
+    with flux_residual(a.tr, set(camap), fn):
+        out = _denoise(a, latents, pe, pooled, img_ids, float(P.get("guidance", 4.0)), lambda i: None)
     return _decode(a, out)[0]
 
 

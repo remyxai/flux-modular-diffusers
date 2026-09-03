@@ -173,6 +173,10 @@ assistance (Claude). Uses FLUX.1-dev (non-commercial); this derivative inherits 
 
 def generate_pipeline(recipe, out_dir):
     """Write block.py + configs + flat flux_modular.py + README into ``out_dir``. Returns the path."""
+    if "pulid" in recipe.get("requires", []):
+        raise NotImplementedError(
+            f"recipe {recipe['name']!r} is an open-weight/heavy recipe (PuLID ID stack + InsightFace/EVA-CLIP); "
+            "thin-block codegen doesn't cover it yet (Phase 3 = a heavy-block path). Use RecipeRunner for now.")
     os.makedirs(out_dir, exist_ok=True)
     cls = _cls_name(recipe)
     open(os.path.join(out_dir, "block.py"), "w").write(_block_py(recipe))
