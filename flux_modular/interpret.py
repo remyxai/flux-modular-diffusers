@@ -107,6 +107,8 @@ def run_recipe(a, recipe, inputs, seed=0, **overrides):
     mode = recipe.get("run", "default")
     if mode == "regional":
         return _run_regional(a, recipe, inputs, P, seed)
+    if mode == "composed":
+        return _run_composed(a, recipe, inputs, P, seed)
     if mode == "batch":
         return _run_batch(a, recipe, inputs, P, seed)
     if mode == "edit":
@@ -145,8 +147,10 @@ def _run_default(a, recipe, inputs, P, seed):
     return _decode(a, out)[0]
 
 
-def _run_regional(a, recipe, inputs, P, seed):
-    cond = recipe.get("condition") or {}
+def _regional_encoding(a, inputs, P):
+    """Build the multi-prompt encoder embeds + the joint-attention region bias mask. Shared by
+    _run_regional and _run_composed. Returns (enc, base_pooled, mask, n_txt)."""
+    cond = P.get("_cond") or {}
     L = int(P.get("region_seq_len", cond.get("region_seq_len", 128)))
     exclusive = bool(P.get("exclusive", cond.get("exclusive", True)))
     strength = float(P.get("isolate_strength", cond.get("isolate_strength", 0.0)))
@@ -189,7 +193,43 @@ def _run_regional(a, recipe, inputs, P, seed):
         img_allow |= un.unsqueeze(0) | un.unsqueeze(1)
         bias[n_txt:, n_txt:] = torch.where(img_allow, 0.0, -strength)
     mask = bias.unsqueeze(0).unsqueeze(0).to(device=a.device, dtype=a.dtype)
+    return enc, base_pooled, mask, n_txt
+
+
+def _run_regional(a, recipe, inputs, P, seed):
+    enc, base_pooled, mask, n_txt = _regional_encoding(a, inputs, {**P, "_cond": recipe.get("condition")})
     payload = lambda i: {PAYLOAD_KEY: {"bias": (lambda q, k, ntxt, attn, pl: mask), "n_txt": n_txt}}
+    latents, img_ids = _noise_latents(a, 1, seed)
+    out = _denoise(a, latents, enc, base_pooled, img_ids, float(P.get("guidance", 3.5)), payload)
+    return _decode(a, out)[0]
+
+
+def _run_composed(a, recipe, inputs, P, seed):
+    """Single-pass COMPOSITION: reference-structure lock (freecontrol Q-replace) + per-region prompts
+    (regional bias) in one denoise — both hooks in one payload. inputs = {ref_structure, base_prompt, regions}."""
+    enc, base_pooled, mask, n_txt = _regional_encoding(a, inputs, {**P, "_cond": recipe.get("condition")})
+    ids = _sites(a, recipe.get("site", {"stream": "single", "last_n": int(P.get("last_n", 25))}))
+    bank = {}
+    cap = recipe.get("capture")
+    if cap:
+        bank = _capture_q(a, inputs[cap.get("source", "ref_structure")], P.get("sigma", cap.get("sigma", 0.35)),
+                          int(cap.get("timestep", 661)), ids)
+    replace = any(o.get("op") == "replace_q" for o in recipe.get("ops", []))
+    cut = int(float(P.get("S", 0.3)) * a.steps)
+    st = {"step": 0}
+    region_bias = lambda q, k, ntxt, attn, pl: mask
+
+    def pre_rope(q, k, v, off, attn, pl):
+        if replace and st["step"] < cut and id(attn) in ids and id(attn) in bank:
+            q = q.clone(); q[:, -a.n_img:] = bank[id(attn)].to(q)
+        return q, k, v
+
+    def payload(i):
+        st["step"] = i
+        p = {"bias": region_bias, "n_txt": n_txt}
+        if replace:
+            p["pre_rope"] = pre_rope
+        return {PAYLOAD_KEY: p}
 
     latents, img_ids = _noise_latents(a, 1, seed)
     out = _denoise(a, latents, enc, base_pooled, img_ids, float(P.get("guidance", 3.5)), payload)

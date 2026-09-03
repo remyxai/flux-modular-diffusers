@@ -54,8 +54,8 @@ test. Until then these recipes are **FLUX-family**.
 
 ## Method coverage
 
-The interpreter has four run paths — **default** (capture-Q → Redux → replace-Q), **regional** (multi-prompt +
-bias mask), **batch** (frame-shared K/V), and **edit** (RF-inversion → substitute). A method that needs a *fifth*
+The interpreter has five run paths — **default** (capture-Q → Redux → replace-Q), **regional** (multi-prompt +
+bias mask), **composed** (structure + regional in one pass), **batch** (frame-shared K/V), and **edit** (RF-inversion → substitute). A method that needs a *fifth*
 loop isn't fake-shipped as a recipe; it's mapped here with the extension it needs, so "add a recipe" stays honest
 (a recipe should run through the interpreter, not lie about it).
 
@@ -64,6 +64,7 @@ loop isn't fake-shipped as a recipe; it's mapped here with the extension it need
 | freecontrol | default · `replace_q` | ✅ recipe (block-parity) | — |
 | appearance | default · Redux | ✅ recipe (spike) | — |
 | structure_appearance | default · `replace_q` + Redux | ✅ recipe (spike) | — |
+| structure_regional | **composed** · `replace_q` + `bias` | ⚠️ recipe (expressible) | NEW composition — reference layout + per-region prompts in one pass; validate before trusting |
 | regional | regional · `bias` | ✅ recipe (spike) | — |
 | story-diffusion | **batch** · `share` | ✅ recipe (spike) | returns a list of frames |
 | kv-edit | **edit** · `substitute` | ✅ recipe (spike) | RF-invert → substitute bg K/V via the shared pre-rope hook |

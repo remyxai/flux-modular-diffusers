@@ -1,0 +1,17 @@
+name: structure_regional
+description: >-
+  Composition — reference STRUCTURE (freecontrol Q-replace) + a different PROMPT per region (regional bias),
+  in one denoise pass. Keep this image's layout, but place different content per region.
+run: composed
+requires: [rope, single_stream, mask]
+inputs: [ref_structure, base_prompt, regions]   # regions: [{prompt, bbox:[x0,y0,x1,y1] normalized}]
+site: {stream: single, last_n: 25}
+capture: {kind: lcd_q, sigma: 0.35, timestep: 661, source: ref_structure}
+condition: {kind: regional, region_seq_len: 128, exclusive: true, isolate_strength: 0.0}
+ops:
+  - {op: replace_q, tokens: image}   # structure lock (pre_rope)
+  - {op: bias, kind: region_mask}    # per-region prompt routing (bias)
+params: {S: 0.3, guidance: 3.5}
+validated: expressible   # NEW composition (freecontrol ⊕ regional) — validate via explore.ipynb before trusting
+pipeline: null
+paper: composition of 2511.05219 + 2302.08113
