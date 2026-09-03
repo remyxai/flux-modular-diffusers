@@ -13,7 +13,7 @@ license_link: https://huggingface.co/black-forest-labs/FLUX.1-dev/blob/main/LICE
 
 # FlowEdit for FLUX — training-free, inversion-free image editing (Modular Diffusers custom block)
 
-**🤗 Hub:** [remyxai/flowedit-flux-modular](https://huggingface.co/remyxai/flowedit-flux-modular) · **📄 Paper:** [arXiv:2412.08629](https://arxiv.org/abs/2412.08629) · **💻 Reference:** [fallenshock/FlowEdit](https://github.com/fallenshock/FlowEdit) · **📦 Monorepo:** [flux-modular-diffusers](https://github.com/remyxai/flux-modular-diffusers)
+**🤗 Hub:** [remyxai/flowedit-flux-modular](https://huggingface.co/remyxai/flowedit-flux-modular) · **📄 Paper:** [arXiv:2412.08629](https://arxiv.org/abs/2412.08629) · **💻 Reference:** [fallenshock/FlowEdit](https://github.com/fallenshock/FlowEdit) · **📦 Monorepo:** [flux-recipes](https://github.com/remyxai/flux-recipes)
 
 Text-based image editing on off-the-shelf **FLUX.1-dev** — **no inversion, no fine-tuning** — as a
 [Modular Diffusers](https://huggingface.co/docs/diffusers/main/en/modular_diffusers/custom_blocks)

@@ -13,7 +13,7 @@ license_link: https://huggingface.co/black-forest-labs/FLUX.1-dev/blob/main/LICE
 
 # ConsistEdit for FLUX — highly consistent, precise training-free editing (Modular Diffusers custom block)
 
-**🤗 Hub:** [remyxai/consistedit-flux-modular](https://huggingface.co/remyxai/consistedit-flux-modular) · **📄 Paper:** [arXiv:2510.17803](https://arxiv.org/abs/2510.17803) · **💻 Reference:** [zxYin/ConsistEdit_Code](https://github.com/zxYin/ConsistEdit_Code) (Apache-2.0) · **📦 Monorepo:** [flux-modular-diffusers](https://github.com/remyxai/flux-modular-diffusers)
+**🤗 Hub:** [remyxai/consistedit-flux-modular](https://huggingface.co/remyxai/consistedit-flux-modular) · **📄 Paper:** [arXiv:2510.17803](https://arxiv.org/abs/2510.17803) · **💻 Reference:** [zxYin/ConsistEdit_Code](https://github.com/zxYin/ConsistEdit_Code) (Apache-2.0) · **📦 Monorepo:** [flux-recipes](https://github.com/remyxai/flux-recipes)
 
 Text-based image editing on off-the-shelf **FLUX.1-dev** — **no training, no extra weights** — as a
 [Modular Diffusers](https://huggingface.co/docs/diffusers/main/en/modular_diffusers/custom_blocks)

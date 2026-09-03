@@ -1,4 +1,4 @@
-# FLUX Modular Diffusers
+# flux-recipes
 
 A toolkit for **training-free FLUX interventions**: one attention primitive, a library of methods expressed as
 **recipes**, a single interpreter that **runs / sweeps / generates** them, and the turnkey
