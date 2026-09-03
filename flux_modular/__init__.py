@@ -11,13 +11,10 @@ from .plumbing import pack_latents, unpack_latents, prepare_latent_image_ids, ca
 from .attention import (
     FluxIntervention,
     flux_intervention,
-    edge_blocks,
     edge_attn_ids,
     PAYLOAD_KEY,
     op_append,
     op_capture_image_kv,
-    op_substitute,
-    op_blend,
     op_capture_q,
     op_replace_q,
     last_single_attn_ids,
@@ -29,8 +26,8 @@ from .recipes import load_recipe, load_recipes
 
 __all__ = [
     "pack_latents", "unpack_latents", "prepare_latent_image_ids", "calculate_shift",
-    "FluxIntervention", "flux_intervention", "edge_blocks", "edge_attn_ids", "PAYLOAD_KEY",
-    "op_append", "op_capture_image_kv", "op_substitute", "op_blend",
+    "FluxIntervention", "flux_intervention", "edge_attn_ids", "PAYLOAD_KEY",
+    "op_append", "op_capture_image_kv",
     "op_capture_q", "op_replace_q", "last_single_attn_ids",
     "load_recipe", "load_recipes",
 ]

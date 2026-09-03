@@ -8,8 +8,8 @@ import torch
 
 from flux_modular import (
     pack_latents, unpack_latents, prepare_latent_image_ids, calculate_shift,
-    FluxIntervention, flux_intervention, edge_blocks, PAYLOAD_KEY,
-    op_append, op_capture_image_kv, op_substitute, op_blend,
+    FluxIntervention, edge_attn_ids, PAYLOAD_KEY,
+    op_append, op_capture_image_kv,
     op_capture_q, op_replace_q, last_single_attn_ids,
 )
 
@@ -33,15 +33,16 @@ def test_calculate_shift_monotonic():
     assert calculate_shift(256) < calculate_shift(4096)
 
 
-def test_edge_blocks():
+def test_edge_attn_ids():
+    class _A:
+        pass
+    class _Blk:
+        def __init__(self): self.attn = _A()
     class _T:
-        transformer_blocks = list(range(19))
-        single_transformer_blocks = list(range(38))
-    keys = edge_blocks(_T(), n=2)
-    assert "transformer_blocks.0.attn.processor" in keys
-    assert "transformer_blocks.18.attn.processor" in keys
-    assert "single_transformer_blocks.37.attn.processor" in keys
-    assert len(keys) == 8
+        transformer_blocks = [_Blk() for _ in range(19)]
+        single_transformer_blocks = [_Blk() for _ in range(38)]
+    ids = edge_attn_ids(_T(), n=2)
+    assert len(ids) == 8   # first-2 + last-2 of each of the two streams, dedup'd
 
 
 def test_payload_key_is_named_param():
@@ -63,8 +64,8 @@ def test_intervention_is_flux_processor_subclass():
 def test_op_builders_return_callables():
     assert callable(op_append({}))
     assert callable(op_capture_image_kv({}, 4096))
-    assert callable(op_substitute(None, None, None))
-    assert callable(op_blend(None, None, None, 0.5))
+    assert callable(op_capture_q({}))
+    assert callable(op_replace_q({}))
 
 
 def test_freecontrol_ops():
