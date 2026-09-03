@@ -13,7 +13,7 @@ license_link: https://huggingface.co/black-forest-labs/FLUX.1-dev/blob/main/LICE
 
 # FreeControl for FLUX — training-free structural control from a reference image (Modular Diffusers custom block)
 
-**🤗 Hub:** [remyxai/freecontrol-flux-modular](https://huggingface.co/remyxai/freecontrol-flux-modular) · **📄 Paper:** [arXiv:2511.05219](https://arxiv.org/abs/2511.05219) · **📦 Monorepo:** [flux-modular-diffusers](https://github.com/remyxai/flux-modular-diffusers)
+**🤗 Hub:** [remyxai/freecontrol-flux-modular](https://huggingface.co/remyxai/freecontrol-flux-modular) · **📄 Paper:** [arXiv:2511.05219](https://arxiv.org/abs/2511.05219) · **📦 Monorepo:** [flux-recipes](https://github.com/remyxai/flux-recipes)
 
 Give a **reference image** (structure) + a **target prompt** (content) and generate an image that follows the
 prompt while keeping the reference's spatial layout — no fine-tuning, no new weights, **no inversion and no

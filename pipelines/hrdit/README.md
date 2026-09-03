@@ -12,7 +12,7 @@ license: mit
 
 # HRDiT for FLUX — training-free 4K (Modular Diffusers custom block)
 
-**🤗 Hub:** [remyxai/hrdit-flux-modular](https://huggingface.co/remyxai/hrdit-flux-modular) · **📄 Paper:** [arXiv:2608.07003](https://arxiv.org/abs/2608.07003) · **💻 Reference:** [zylwithxy/HRDiT](https://github.com/zylwithxy/HRDiT) · **📦 Monorepo:** [flux-modular-diffusers](https://github.com/remyxai/flux-modular-diffusers)
+**🤗 Hub:** [remyxai/hrdit-flux-modular](https://huggingface.co/remyxai/hrdit-flux-modular) · **📄 Paper:** [arXiv:2608.07003](https://arxiv.org/abs/2608.07003) · **💻 Reference:** [zylwithxy/HRDiT](https://github.com/zylwithxy/HRDiT) · **📦 Monorepo:** [flux-recipes](https://github.com/remyxai/flux-recipes)
 
 Training-free high-resolution text-to-image (up to 4096²) from off-the-shelf **FLUX.1** checkpoints —
 no fine-tuning, no extra weights — packaged as a

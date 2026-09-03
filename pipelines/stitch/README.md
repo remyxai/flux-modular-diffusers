@@ -15,7 +15,7 @@ license_link: https://huggingface.co/black-forest-labs/FLUX.1-dev/blob/main/LICE
 
 # Stitch for FLUX — training-free bounding-box position control (Modular Diffusers custom block)
 
-**🤗 Hub:** [remyxai/stitch-flux-modular](https://huggingface.co/remyxai/stitch-flux-modular) · **📄 Paper:** [arXiv:2509.26644](https://arxiv.org/abs/2509.26644) · **💻 Reference:** [ExplainableML/Stitch](https://github.com/ExplainableML/Stitch) *(unlicensed — see the clean-room note)* · **📦 Monorepo:** [flux-modular-diffusers](https://github.com/remyxai/flux-modular-diffusers)
+**🤗 Hub:** [remyxai/stitch-flux-modular](https://huggingface.co/remyxai/stitch-flux-modular) · **📄 Paper:** [arXiv:2509.26644](https://arxiv.org/abs/2509.26644) · **💻 Reference:** [ExplainableML/Stitch](https://github.com/ExplainableML/Stitch) *(unlicensed — see the clean-room note)* · **📦 Monorepo:** [flux-recipes](https://github.com/remyxai/flux-recipes)
 
 Put **this object at this location** — no fine-tuning, no detector, no extra weights — as a
 [Modular Diffusers](https://huggingface.co/docs/diffusers/main/en/modular_diffusers/custom_blocks)

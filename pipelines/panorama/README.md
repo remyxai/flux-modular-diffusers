@@ -14,7 +14,7 @@ license_link: https://huggingface.co/black-forest-labs/FLUX.1-dev/blob/main/LICE
 
 # MultiDiffusion Panorama for FLUX — training-free ultra-wide generation (Modular Diffusers custom block)
 
-**🤗 Hub:** [remyxai/panorama-flux-modular](https://huggingface.co/remyxai/panorama-flux-modular) · **📄 Paper:** [arXiv:2302.08113](https://arxiv.org/abs/2302.08113) · **💻 Reference:** [omerbt/MultiDiffusion](https://github.com/omerbt/MultiDiffusion) *(unlicensed — see the clean-room note)* · **📦 Monorepo:** [flux-modular-diffusers](https://github.com/remyxai/flux-modular-diffusers)
+**🤗 Hub:** [remyxai/panorama-flux-modular](https://huggingface.co/remyxai/panorama-flux-modular) · **📄 Paper:** [arXiv:2302.08113](https://arxiv.org/abs/2302.08113) · **💻 Reference:** [omerbt/MultiDiffusion](https://github.com/omerbt/MultiDiffusion) *(unlicensed — see the clean-room note)* · **📦 Monorepo:** [flux-recipes](https://github.com/remyxai/flux-recipes)
 
 Generate **ultra-wide / panoramic images well beyond FLUX's native aspect** — no training, no extra
 weights — as a [Modular Diffusers](https://huggingface.co/docs/diffusers/main/en/modular_diffusers/custom_blocks)

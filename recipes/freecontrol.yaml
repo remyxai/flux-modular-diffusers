@@ -1,0 +1,13 @@
+name: freecontrol
+description: Reference structural control on FLUX.1-dev — image-Q replace in the late single blocks.
+requires: [rope, single_stream]
+inputs: [prompt, ref_structure]
+site: {stream: single, last_n: 25}
+capture: {kind: lcd_q, sigma: 0.35, timestep: 661, source: ref_structure}
+condition: null
+ops:
+  - {op: replace_q, tokens: image}
+params: {S: 0.3, guidance: 6.5}
+validated: block-parity   # config depth-corr 0.883 vs shipped block 0.89 (A100, 2026-09)
+pipeline: pipelines/freecontrol
+paper: https://arxiv.org/abs/2511.05219

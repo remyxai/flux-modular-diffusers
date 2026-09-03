@@ -14,7 +14,7 @@ license_link: https://huggingface.co/black-forest-labs/FLUX.1-dev/blob/main/LICE
 
 # StoryDiffusion for FLUX — training-free consistent-character generation (Modular Diffusers custom block)
 
-**🤗 Hub:** [remyxai/story-diffusion-flux-modular](https://huggingface.co/remyxai/story-diffusion-flux-modular) · **📄 Paper:** [arXiv:2405.01434](https://arxiv.org/abs/2405.01434) · **💻 Reference:** [HVision-NKU/StoryDiffusion](https://github.com/HVision-NKU/StoryDiffusion) · **📦 Monorepo:** [flux-modular-diffusers](https://github.com/remyxai/flux-modular-diffusers)
+**🤗 Hub:** [remyxai/story-diffusion-flux-modular](https://huggingface.co/remyxai/story-diffusion-flux-modular) · **📄 Paper:** [arXiv:2405.01434](https://arxiv.org/abs/2405.01434) · **💻 Reference:** [HVision-NKU/StoryDiffusion](https://github.com/HVision-NKU/StoryDiffusion) · **📦 Monorepo:** [flux-recipes](https://github.com/remyxai/flux-recipes)
 
 Generate a **set of frames of the same character** across different scenes — no fine-tuning — as a
 [Modular Diffusers](https://huggingface.co/docs/diffusers/main/en/modular_diffusers/custom_blocks)

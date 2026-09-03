@@ -17,7 +17,6 @@ pattern kv-edit already uses. Candidate for upstream (diffusers attention_proces
 from contextlib import contextmanager
 
 import torch
-import torch.nn.functional as F
 from diffusers.models.embeddings import apply_rotary_emb
 from diffusers.models.transformers.transformer_flux import FluxAttnProcessor, _get_qkv_projections
 
@@ -106,15 +105,6 @@ class FluxIntervention(FluxAttnProcessor):
         return out
 
 
-def edge_blocks(transformer, n=2):
-    """Processor keys for the first-``n`` and last-``n`` blocks of BOTH FLUX streams (dedup'd)."""
-    nD, nS = len(transformer.transformer_blocks), len(transformer.single_transformer_blocks)
-    idxD = list(dict.fromkeys(list(range(n)) + list(range(nD - n, nD))))
-    idxS = list(dict.fromkeys(list(range(n)) + list(range(nS - n, nS))))
-    return ([f"transformer_blocks.{i}.attn.processor" for i in idxD] +
-            [f"single_transformer_blocks.{i}.attn.processor" for i in idxS])
-
-
 @contextmanager
 def flux_intervention(transformer, block_keys=None):
     """Install :class:`FluxIntervention` on ``block_keys`` (default: all attn processors); restore the
@@ -161,27 +151,6 @@ def op_capture_image_kv(bank, n_img, ids=None):
     def _fn(q, k, v, n_txt, attn, pl):
         if ids is None or id(attn) in ids:
             bank[id(attn)] = (k[:, -n_img:].detach(), v[:, -n_img:].detach())
-        return q, k, v
-    return _fn
-
-
-def op_substitute(k_src, v_src, idx):
-    """pre_rope: in-place swap of K/V at image-token ``idx`` (background preservation — kv-edit)."""
-    def _fn(q, k, v, off, attn, pl):
-        j = idx + off
-        k[:, j] = k_src.to(device=k.device, dtype=k.dtype)
-        v[:, j] = v_src.to(device=v.device, dtype=v.dtype)
-        return q, k, v
-    return _fn
-
-
-def op_blend(q_s, k_s, v_s, w, off=0):
-    """pre_rope: lerp toward a donor's image-slice q/k/v (structural consistency — consistedit)."""
-    def _fn(q, k, v, o, attn, pl):
-        s = (off or o)
-        q[:, s:] = torch.lerp(q[:, s:], q_s.to(q), w)
-        k[:, s:] = torch.lerp(k[:, s:], k_s.to(k), w)
-        v[:, s:] = torch.lerp(v[:, s:], v_s.to(v), w)
         return q, k, v
     return _fn
 

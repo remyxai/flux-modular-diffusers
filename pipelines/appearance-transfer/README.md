@@ -14,7 +14,7 @@ license_link: https://huggingface.co/black-forest-labs/FLUX.1-dev/blob/main/LICE
 
 # Appearance Transfer for FLUX — training-free reference appearance/texture transfer (Modular Diffusers custom block)
 
-**🤗 Hub:** [remyxai/appearance-transfer-flux-modular](https://huggingface.co/remyxai/appearance-transfer-flux-modular) · **📄 Paper:** [arXiv:2603.26767](https://arxiv.org/abs/2603.26767) · **📦 Monorepo:** [flux-modular-diffusers](https://github.com/remyxai/flux-modular-diffusers)
+**🤗 Hub:** [remyxai/appearance-transfer-flux-modular](https://huggingface.co/remyxai/appearance-transfer-flux-modular) · **📄 Paper:** [arXiv:2603.26767](https://arxiv.org/abs/2603.26767) · **📦 Monorepo:** [flux-recipes](https://github.com/remyxai/flux-recipes)
 
 ![Appearance transfer — the astronaut's structure preserved, re-rendered in the reference cup's ceramic/espresso material](assets/appearance_transfer_hero.png)
 

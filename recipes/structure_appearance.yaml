@@ -1,0 +1,15 @@
+name: structure_appearance
+description: >-
+  Two-reference control (ORIGINAL composition): structure from ref_structure (freecontrol Q-replace)
+  + appearance from ref_appearance (Redux) + content from the prompt. = freecontrol MERGED with appearance.
+requires: [rope, single_stream, redux]
+inputs: [prompt, ref_structure, ref_appearance]
+site: {stream: single, last_n: 25}
+capture: {kind: lcd_q, sigma: 0.35, timestep: 661, source: ref_structure}
+condition: {kind: redux, source: ref_appearance, mask_floor: 0.1}
+ops:
+  - {op: replace_q, tokens: image}
+params: {S: 0.5, redux_scale: 1.5, guidance: 6.5}   # probe-tuned: S~0.5 keeps structure, redux_scale~1.5 lifts appearance
+validated: spike   # GO: d=0.89 (=freecontrol) + appearance +0.19 at S=0.5 (A100 2-D probe, 2026-09)
+pipeline: null   # composition — no standalone HF pipeline yet
+paper: composition of 2511.05219 + 2603.26767

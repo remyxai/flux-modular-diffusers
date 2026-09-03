@@ -1,0 +1,12 @@
+name: appearance
+description: Reference appearance/material via mask-weighted Redux conditioning (no structure lock).
+requires: [redux]
+inputs: [prompt, ref_appearance]
+site: {stream: single, last_n: 25}
+capture: null
+condition: {kind: redux, source: ref_appearance, mask_floor: 0.1}
+ops: []
+params: {redux_scale: 1.0, guidance: 6.5}
+validated: spike   # appearance channel confirmed on base dev (structure_appearance spike, A100)
+pipeline: pipelines/appearance-transfer
+paper: https://arxiv.org/abs/2603.26767
