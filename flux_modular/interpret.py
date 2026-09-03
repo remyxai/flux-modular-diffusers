@@ -97,15 +97,21 @@ def _capture_image_kv(a, img, ids, sigma=0.35, timestep=661):
 
 
 def _kv_appearance(a, recipe, inputs, P):
-    """If the recipe's condition is ``kv_appearance``, capture the reference K/V and return (append_op, n_txt=None).
-    Returns (None, None) otherwise. The append op is a post_rope hook for the denoise payload."""
+    """If the recipe's condition is ``kv_appearance``, capture the reference K/V and return a **step-gated**
+    ``append(i) -> op|None`` callable. Returns ``None`` if the condition isn't kv_appearance.
+
+    ``condition.start_frac`` (default 0.0) delays the material append to a late step window: material lands only
+    for ``i >= start_frac * n_steps``. This is the "content early, style late" schedule — in a three-way, letting
+    identity + structure establish before the K/V material is added prevents the material from swamping the face."""
     cond = recipe.get("condition") or {}
     if cond.get("kind") != "kv_appearance":
         return None
     ids = edge_attn_ids(a.tr, int(cond.get("edge", 2)))
     bank = _capture_image_kv(a, inputs[cond.get("source", "ref_appearance")], ids,
                              float(cond.get("sigma", 0.35)), int(cond.get("timestep", 661)))
-    return op_append(bank, ids)
+    op = op_append(bank, ids)
+    start = int(round(float(cond.get("start_frac", 0.0)) * a.steps))
+    return lambda i: (op if i >= start else None)
 
 
 def _denoise(a, latents, enc, pooled, img_ids, guidance_scale, payload=None):
@@ -246,7 +252,9 @@ def _run_default(a, recipe, inputs, P, seed):
         if replace:
             p["pre_rope"] = pre_rope
         if append_op is not None:
-            p["post_rope"] = append_op
+            ap = append_op(i)
+            if ap is not None:
+                p["post_rope"] = ap
         if not p:
             return None
         p["n_txt"] = int(enc.shape[1])
@@ -426,7 +434,9 @@ def _run_identity_composed(a, recipe, inputs, P, seed):
         if replace:
             p["pre_rope"] = pre_rope
         if append_op is not None:
-            p["post_rope"] = append_op
+            ap = append_op(i)
+            if ap is not None:
+                p["post_rope"] = ap
         if not p:
             return None
         p["n_txt"] = int(enc.shape[1])
