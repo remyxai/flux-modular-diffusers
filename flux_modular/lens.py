@@ -106,10 +106,15 @@ class FluxLens:
         Two conditioning kinds are wired: the default capture-Q / Redux / replace-Q path
         (freecontrol, appearance, structure_appearance) and ``regional`` (multi-prompt + bias mask).
         """
-        cond = recipe.get("condition") or {}
-        if cond.get("kind") == "regional":
-            return self._run_regional(recipe, inputs, {**recipe.get("params", {}), **overrides}, seed)
-        return self._run_default(recipe, inputs, {**recipe.get("params", {}), **overrides}, seed)
+        P = {**recipe.get("params", {}), **overrides}
+        mode = recipe.get("run", "default")     # default | regional | batch | edit
+        if mode == "regional":
+            return self._run_regional(recipe, inputs, P, seed)
+        if mode == "batch":
+            return self._run_batch(recipe, inputs, P, seed)
+        if mode == "edit":
+            return self._run_edit(recipe, inputs, P, seed)
+        return self._run_default(recipe, inputs, P, seed)
 
     def _run_default(self, recipe, inputs, P, seed):
         ids = self._sites(recipe.get("site", {"stream": "single", "last_n": int(P.get("last_n", 25))}))
@@ -209,6 +214,158 @@ class FluxLens:
                              guidance_scale=float(P.get("guidance", 3.5)),
                              generator=torch.Generator("cpu").manual_seed(int(seed)),
                              joint_attention_kwargs=jkw).images[0]
+
+    # ---- consistency: batched frames sharing K/V across the batch (op: post_rope share) ----
+    @torch.no_grad()
+    def _run_batch(self, recipe, inputs, P, seed):
+        """inputs = {character_prompt, scene_prompts:[str]} ("#cap" -> caption, "[NC]" prefix -> no character).
+        Faithful to pipelines/story-diffusion: each frame also attends to a sampled pool of ALL frames' K/V
+        (post-rope) after ``share_start_frac`` of steps -> a consistent character across scenes. Returns a list."""
+        from diffusers.utils.torch_utils import randn_tensor
+        cond = recipe.get("condition") or {}
+        share_ratio = float(P.get("share_ratio", cond.get("share_ratio", 0.3)))
+        start_frac = float(P.get("share_start_frac", cond.get("share_start_frac", 0.35)))
+        share_on = bool(P.get("story_share", True))
+
+        prompts = []
+        for sc in inputs["scene_prompts"]:
+            body = sc.partition("#")[0].strip()
+            prompts.append(body[4:].strip() if body.startswith("[NC]") else f"{inputs['character_prompt']}, {body}")
+        batch = len(prompts)
+        pe, pooled, tids = self.pipe.encode_prompt(prompt=prompts, prompt_2=prompts, device=self.device,
+                                                   num_images_per_prompt=1, max_sequence_length=512)
+        gen = torch.Generator("cpu").manual_seed(int(seed))
+        lh, lw = 2 * (self.H // 16), 2 * (self.W // 16)
+        ch = self.tr.config.in_channels // 4
+        latents = pack_latents(randn_tensor((batch, ch, lh, lw), generator=gen, device=self.device, dtype=self.dtype),
+                               batch, ch, lh, lw)
+        img_ids = prepare_latent_image_ids(lh // 2, lw // 2, self.device, self.dtype)
+        guidance = (torch.full([1], float(P.get("guidance", 3.5)), device=self.device, dtype=self.dtype).expand(batch)
+                    if self.tr.config.guidance_embeds else None)
+        cfg = self.pipe.scheduler.config
+        sigmas = np.linspace(1.0, 1.0 / self.steps, self.steps)
+        mu = calculate_shift(latents.shape[1], cfg.get("base_image_seq_len", 256), cfg.get("max_image_seq_len", 4096),
+                             cfg.get("base_shift", 0.5), cfg.get("max_shift", 1.15))
+        self.pipe.scheduler.set_timesteps(sigmas=sigmas, mu=mu, device=self.device)
+        timesteps = self.pipe.scheduler.timesteps
+        start_step = int(start_frac * len(timesteps))
+
+        def _share(q, k, v, n_txt, attn, pl):
+            B, S, h, D = k.shape
+            if B <= 1:
+                return q, k, v
+            pk, pv = k.reshape(B * S, h, D), v.reshape(B * S, h, D)
+            if share_ratio < 1.0:
+                n = max(1, int(share_ratio * B * S))
+                idx = torch.randperm(B * S, device=k.device)[:n]
+                pk, pv = pk[idx], pv[idx]
+            pk = pk.unsqueeze(0).expand(B, pk.shape[0], h, D)
+            pv = pv.unsqueeze(0).expand(B, pv.shape[0], h, D)
+            return q, torch.cat([k, pk], dim=1), torch.cat([v, pv], dim=1)
+
+        with flux_intervention(self.tr):
+            for i, t in enumerate(timesteps):
+                active = share_on and i >= start_step
+                jkw = {PAYLOAD_KEY: {"post_rope": _share}} if active else None
+                noise = self.tr(hidden_states=latents, timestep=t.expand(batch).to(self.dtype) / 1000,
+                                guidance=guidance, pooled_projections=pooled, encoder_hidden_states=pe,
+                                txt_ids=tids, img_ids=img_ids, joint_attention_kwargs=jkw, return_dict=False)[0]
+                latents = self.pipe.scheduler.step(noise, t, latents, return_dict=False)[0]
+        z = unpack_latents(latents, self.H, self.W, 8).to(self.vae.device)
+        z = z / self.vae.config.scaling_factor + self.vae.config.shift_factor
+        img = self.vae.decode(z.to(self.vae.dtype), return_dict=False)[0]
+        return self.pipe.image_processor.postprocess(img, output_type="pil")
+
+    # ---- editing: RF-inversion caching background K/V, then edit-denoise substituting it (op: substitute) ----
+    @torch.no_grad()
+    def _run_edit(self, recipe, inputs, P, seed):
+        """inputs = {image, prompt (target), source_prompt, mask (white=edit / black=keep, or None)}.
+        Faithful to pipelines/kv-edit, but driven through the shared FluxIntervention pre-rope hook instead of a
+        bespoke processor: invert the source under its prompt caching background-token K/V per (block, step),
+        then denoise under the target prompt substituting that K/V so only the masked region changes."""
+        from diffusers.utils.torch_utils import randn_tensor  # noqa: F401  (kept for parity with block imports)
+        sched = self.pipe.scheduler
+        L = int(P.get("max_sequence_length", 512))
+        gh = gw = self.H // 16
+        n_img = gh * gw
+
+        x = self.pipe.image_processor.preprocess(inputs["image"], height=self.H, width=self.W).to(self.device, self.vae.dtype)
+        x0 = self.vae.encode(x).latent_dist.mode()
+        x0 = (x0 - self.vae.config.shift_factor) * self.vae.config.scaling_factor
+        lh, lw = x0.shape[2], x0.shape[3]
+        latents = pack_latents(x0.to(self.dtype), 1, self.vae.config.latent_channels, lh, lw)
+        img_ids = prepare_latent_image_ids(lh // 2, lw // 2, self.device, self.dtype)
+
+        bg = None
+        mask = inputs.get("mask")
+        if mask is not None:
+            from PIL import Image
+            m = mask.convert("L").resize((lw // 2, lh // 2))
+            bg = torch.from_numpy(np.asarray(m) < 128).flatten().to(self.device)   # True = keep (background)
+            if not bool(bg.any()):
+                bg = None
+        if bg is None:                                   # whole-image edit -> nothing to preserve -> plain regen
+            bg = torch.zeros(n_img, dtype=torch.bool, device=self.device)
+        bg_idx = bg.nonzero(as_tuple=False).squeeze(-1)
+
+        src_pe, src_pooled = self._prompt_embeds(inputs["source_prompt"], L=L)
+        tar_pe, tar_pooled = self._prompt_embeds(inputs["prompt"], L=L)
+        src_tids = torch.zeros(src_pe.shape[1], 3, device=self.device, dtype=self.dtype)
+        tar_tids = torch.zeros(tar_pe.shape[1], 3, device=self.device, dtype=self.dtype)
+        g_embeds = self.tr.config.guidance_embeds
+        src_g = torch.full((1,), float(P.get("src_guidance", 1.0)), device=self.device, dtype=self.dtype) if g_embeds else None
+        tar_g = torch.full((1,), float(P.get("guidance", 3.5)), device=self.device, dtype=self.dtype) if g_embeds else None
+
+        cfg = sched.config
+        sigmas = np.linspace(1.0, 1.0 / self.steps, self.steps)
+        mu = calculate_shift(latents.shape[1], cfg.get("base_image_seq_len", 256), cfg.get("max_image_seq_len", 4096),
+                             cfg.get("base_shift", 0.5), cfg.get("max_shift", 1.15))
+        sched.set_timesteps(sigmas=sigmas, mu=mu, device=self.device)
+        timesteps = sched.timesteps
+
+        store = {}
+
+        def _op(mode):
+            def _fn(q, k, v, off, attn, pl):
+                idx = bg_idx + off
+                key = (id(attn), pl["step"])
+                if idx.numel() == 0:
+                    return q, k, v
+                if mode == "capture":
+                    store[key] = (k[:, idx].detach().to("cpu"), v[:, idx].detach().to("cpu"))
+                elif key in store:
+                    sk, sv = store[key]
+                    k = k.clone(); v = v.clone()
+                    k[:, idx] = sk.to(k); v[:, idx] = sv.to(v)
+                return q, k, v
+            return _fn
+
+        def _vel(lat, pe, pooled, tids, gd, t, op, n_txt, step):
+            jkw = None if op is None else {PAYLOAD_KEY: {"pre_rope": op, "n_txt": n_txt, "step": step}}
+            return self.tr(hidden_states=lat, timestep=(t.expand(1) / 1000).to(self.dtype), guidance=gd,
+                           pooled_projections=pooled, encoder_hidden_states=pe, txt_ids=tids, img_ids=img_ids,
+                           joint_attention_kwargs=jkw, return_dict=False)[0]
+
+        active = bg_idx.numel() > 0
+        cap = _op("capture") if active else None
+        sub = _op("substitute") if active else None
+        with flux_intervention(self.tr):
+            # RF inversion (reverse) under the source prompt, caching bg K/V per step
+            for i in range(len(timesteps) - 1, -1, -1):
+                t = timesteps[i]
+                sched._init_step_index(t)
+                s_i = sched.sigmas[sched.step_index]; s_ip1 = sched.sigmas[sched.step_index + 1]
+                v = _vel(latents, src_pe, src_pooled, src_tids, src_g, t, cap, src_pe.shape[1], i)
+                latents = (latents.to(torch.float32) + (s_i - s_ip1) * v.to(torch.float32)).to(self.dtype)
+            # edit denoise (forward) under the target prompt, substituting bg K/V per step
+            for i, t in enumerate(timesteps):
+                v = _vel(latents, tar_pe, tar_pooled, tar_tids, tar_g, t, sub, tar_pe.shape[1], i)
+                latents = sched.step(v, t, latents, return_dict=False)[0]
+
+        z = unpack_latents(latents, self.H, self.W, 8).to(self.vae.device)
+        z = z / self.vae.config.scaling_factor + self.vae.config.shift_factor
+        img = self.vae.decode(z.to(self.vae.dtype), return_dict=False)[0]
+        return self.pipe.image_processor.postprocess(img, output_type="pil")[0]
 
     # ---- sweep: run a recipe over a grid of overrides, return (images, records) ----
     def sweep(self, recipe, axes, inputs, seed=0):

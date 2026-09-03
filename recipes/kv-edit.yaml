@@ -1,0 +1,14 @@
+name: kv-edit
+description: Editing — pixel-precise background preservation. RF-invert the source caching background K/V, then edit-denoise substituting it.
+run: edit
+requires: [rope, single_stream]
+inputs: [image, prompt, source_prompt, mask]   # mask: white=edit, black=keep (None -> whole-image edit)
+site: {stream: all}
+capture: {kind: rf_invert}      # per-step background K/V, keyed (block, step)
+condition: null
+ops:
+  - {op: substitute, tokens: background}    # pre_rope: swap cached background K/V per step
+params: {guidance: 3.5, src_guidance: 1.0, max_sequence_length: 512}
+validated: expressible   # faithful port of pipelines/kv-edit via the shared FluxIntervention pre-rope hook — GPU-validate before trusting
+pipeline: pipelines/kv-edit
+paper: https://arxiv.org/abs/2502.17363

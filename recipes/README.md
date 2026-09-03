@@ -55,26 +55,27 @@ test. Until then these recipes are **FLUX-family**.
 
 ## Method coverage
 
-The interpreter's two run paths — **default** (capture-Q → Redux → replace-Q) and **regional** (multi-prompt +
-bias mask) — cover the methods whose whole mechanism is *generate-from-noise + an attention payload*. Methods
-that need a different *run loop* aren't fake-shipped as recipes; they're mapped here with the extension each needs,
-so "add a recipe" stays honest (a recipe should run through the interpreter, not lie about it).
+The interpreter has four run paths — **default** (capture-Q → Redux → replace-Q), **regional** (multi-prompt +
+bias mask), **batch** (frame-shared K/V), and **edit** (RF-inversion → substitute). A method that needs a *fifth*
+loop isn't fake-shipped as a recipe; it's mapped here with the extension it needs, so "add a recipe" stays honest
+(a recipe should run through the interpreter, not lie about it).
 
-| method | op(s) | shipped? | needs |
+| method | run path · op(s) | shipped? | notes |
 |---|---|---|---|
-| freecontrol | `replace_q` | ✅ recipe (block-parity) | — |
-| appearance | Redux condition | ✅ recipe (spike) | — |
-| structure_appearance | `replace_q` + Redux | ✅ recipe (spike) | — |
-| **regional** | `bias` (region mask) | ✅ recipe (expressible) | — |
-| stitch | `bias` + `weights` cutout | ⏳ | a cutout/composite **post-op** after the bias core |
-| story-diffusion | `capture_image_kv` + `append` | ⏳ | a **`run_batch`** loop (share K/V across a frame batch) |
-| kv-edit | `substitute` | ⏳ | a **`run_edit`** loop (source inversion → background K/V) |
-| consistedit | `blend` | ⏳ | `run_edit` (source-conditioned blend) |
-| flowedit | custom ODE | ⏳ | `run_edit` (inversion-free edit loop) |
+| freecontrol | default · `replace_q` | ✅ recipe (block-parity) | — |
+| appearance | default · Redux | ✅ recipe (spike) | — |
+| structure_appearance | default · `replace_q` + Redux | ✅ recipe (spike) | — |
+| regional | regional · `bias` | ✅ recipe (expressible) | — |
+| story-diffusion | **batch** · `share` | ✅ recipe (expressible) | returns a list of frames |
+| kv-edit | **edit** · `substitute` | ✅ recipe (expressible) | RF-invert → substitute bg K/V via the shared pre-rope hook |
+| consistedit | edit · `blend` | ⏳ | the **edit** loop exists; needs a mask-weighted vision-token **blend** with a structure window |
+| stitch | regional · `bias` + cutout | ⏳ | a cutout/composite **post-op** after the region-bind bias |
+| flowedit | — (custom ODE) | ✗ | inversion-free velocity trick, **not** an attention op — stays a standalone pipeline |
 
-The ⏳ ops already exist in [`flux_modular/attention.py`](../flux_modular/attention.py); what's missing is the
-run-loop, not the primitive. `run_edit` (inversion) and `run_batch` (frame-shared K/V) are the two extensions that
-would bring the editing and consistency families in. Until then those stay as standalone `pipelines/`.
+The ⏳ ops already exist in [`flux_modular/attention.py`](../flux_modular/attention.py); consistedit is a small add
+on the **edit** path (swap `substitute` for a windowed `blend`), stitch is the **regional** path plus a post-op.
+`flowedit` is not recipe-shaped and remains standalone. **Editing/consistency recipes are `expressible` — faithful
+ports, but GPU-validate via `explore.ipynb` before trusting them.**
 
 The non-attention pipelines (`hrdit`, `dype`, `pulid`, `catvton`, `panorama`) use pos-embed swaps / LoRA compose /
 custom loops, not the attention payload — they aren't recipe-shaped and remain standalone.

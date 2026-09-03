@@ -1,5 +1,6 @@
 name: regional
 description: Regional prompting — a different prompt per image region, routed by a joint-attention bias mask.
+run: regional
 requires: [mask]            # position-agnostic (bias) — also the best cross-model-transfer candidate
 inputs: [base_prompt, regions]   # regions: [{prompt: str, bbox: [x0,y0,x1,y1] normalized}]
 site: {stream: all}         # bias applied on all blocks

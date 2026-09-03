@@ -1,0 +1,14 @@
+name: story
+description: Consistency — one character across scenes, via cross-frame K/V sharing (Consistent Self-Attention).
+run: batch
+requires: [single_stream]   # position-agnostic K/V share
+inputs: [character_prompt, scene_prompts]   # scene_prompts: ["...#caption", "[NC] a scene without the character", ...]
+site: {stream: all}
+capture: null
+condition: {kind: story, share_ratio: 0.3, share_start_frac: 0.35}
+ops:
+  - {op: share, tokens: image}    # post_rope: append a sampled pool of all frames' K/V
+params: {guidance: 3.5, share_ratio: 0.3, share_start_frac: 0.35}
+validated: expressible   # faithful port of pipelines/story-diffusion; validate via explore.ipynb (returns a list of frames)
+pipeline: pipelines/story-diffusion
+paper: https://arxiv.org/abs/2405.01434
