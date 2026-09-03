@@ -15,6 +15,32 @@ pipe.load_components(dtype=torch.bfloat16); pipe.to("cuda")
 Each `pipelines/<name>/` here is the **source** for a HF Hub repo (`remyxai/<name>-flux-modular`): the
 `block.py`, its configs, the model card, and an end-to-end notebook a reviewer runs to verify before merge.
 
+## Two layers: a primitive + recipes, and the pipelines they generate
+
+Under the pipelines is one shared primitive, [`flux_modular`](flux_modular/) — a FLUX joint-attention
+intervention (`FluxIntervention`, subclassing diffusers' own `FluxAttnProcessor`) plus a small op menu
+(capture/replace Q, share K/V, bias, substitute, blend, read weights) and the FLUX plumbing. Most pipelines here
+are the *same move* expressed differently, so we also expose them as **[recipes](recipes/)** — declarative
+`(site, schedule, op, params)` configs that [`FluxLens`](flux_modular/lens.py) runs:
+
+```python
+from flux_modular import FluxLens, load_recipes
+lens, recipes = FluxLens(), load_recipes()
+img = lens.run(recipes["freecontrol"], {"prompt": "a bronze statue bust", "ref_structure": ref}, S=0.3)
+```
+
+- **[`recipes/`](recipes/)** — one config per method (e.g. `freecontrol` reproduces its shipped block at
+  depth-corr 0.883 ≈ 0.89). New capabilities — including **compositions the source papers never tried**
+  (`structure_appearance` = `freecontrol` ⊕ `appearance`) — are new rows, not new code.
+- **[`notebooks/explore.ipynb`](notebooks/explore.ipynb)** — run any recipe and **sweep new configurations** with
+  a side-by-side comparison grid + a metric panel (rank only; the GO call is by eye).
+- **[`pipelines/`](pipelines/)** — the turnkey HF outputs. A validated recipe can be realised as one.
+
+The op menu is model-agnostic; the adapter (token layout, RoPE, plumbing) is per-checkpoint. A recipe declares
+`requires:` so incompatible models reject cleanly. Cross-model transfer is **verified per method**, not assumed
+(an SD3.5 probe found the adapter ports but Q-replace is rope-specific) — so recipes are FLUX-family for now. See
+[`recipes/README.md`](recipes/README.md).
+
 ## Catalog
 
 | pipeline | axis | what it does | 🤗 Hub | 📄 paper | source |

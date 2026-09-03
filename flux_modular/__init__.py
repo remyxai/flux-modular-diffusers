@@ -23,9 +23,22 @@ from .attention import (
     last_single_attn_ids,
 )
 
+# Recipe layer (methods-as-configs) + the FLUX runner/sweeper. Imported lazily-friendly: the heavy
+# diffusers/transformers loads happen only when FluxLens is constructed, not at ``import flux_modular``.
+from .recipes import load_recipe, load_recipes
+
 __all__ = [
     "pack_latents", "unpack_latents", "prepare_latent_image_ids", "calculate_shift",
     "FluxIntervention", "flux_intervention", "edge_blocks", "edge_attn_ids", "PAYLOAD_KEY",
     "op_append", "op_capture_image_kv", "op_substitute", "op_blend",
     "op_capture_q", "op_replace_q", "last_single_attn_ids",
+    "load_recipe", "load_recipes",
 ]
+
+
+def __getattr__(name):
+    # lazy: `from flux_modular import FluxLens` without paying the diffusers import at package load
+    if name == "FluxLens":
+        from .lens import FluxLens
+        return FluxLens
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
