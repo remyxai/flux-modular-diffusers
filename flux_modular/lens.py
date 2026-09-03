@@ -98,11 +98,20 @@ class FluxLens:
                     joint_attention_kwargs={PAYLOAD_KEY: {"pre_rope": cap, "n_txt": pe.shape[1]}}, return_dict=False)
         return bank
 
-    # ---- the interpreter: one code path for every recipe ----
+    # ---- the interpreter: dispatch on recipe kind, one entry point ----
     @torch.no_grad()
     def run(self, recipe, inputs, seed=0, **overrides):
-        """Interpret a recipe dict against ``inputs`` (``prompt`` + any ``ref_*`` images) -> a PIL image."""
-        P = {**recipe.get("params", {}), **overrides}
+        """Interpret a recipe dict against ``inputs`` -> a PIL image.
+
+        Two conditioning kinds are wired: the default capture-Q / Redux / replace-Q path
+        (freecontrol, appearance, structure_appearance) and ``regional`` (multi-prompt + bias mask).
+        """
+        cond = recipe.get("condition") or {}
+        if cond.get("kind") == "regional":
+            return self._run_regional(recipe, inputs, {**recipe.get("params", {}), **overrides}, seed)
+        return self._run_default(recipe, inputs, {**recipe.get("params", {}), **overrides}, seed)
+
+    def _run_default(self, recipe, inputs, P, seed):
         ids = self._sites(recipe.get("site", {"stream": "single", "last_n": int(P.get("last_n", 25))}))
 
         bank = {}
@@ -139,6 +148,67 @@ class FluxLens:
                              num_inference_steps=self.steps, guidance_scale=float(P.get("guidance", 6.5)),
                              generator=torch.Generator("cpu").manual_seed(int(seed)),
                              joint_attention_kwargs=jkw, callback_on_step_end=cb).images[0]
+
+    # ---- regional: multi-prompt + a joint-attention bias mask (op: bias) ----
+    @torch.no_grad()
+    def _run_regional(self, recipe, inputs, P, seed):
+        """inputs = {base_prompt, regions:[{prompt, bbox:[x0,y0,x1,y1] normalized}]}. Faithful to
+        pipelines/regional-prompting: each image token attends to its region's prompt (+ base), routed by an
+        additive mask. Position-agnostic (bias), so this is also the best cross-model-transfer candidate."""
+        cond = recipe.get("condition") or {}
+        L = int(P.get("region_seq_len", cond.get("region_seq_len", 128)))
+        exclusive = bool(P.get("exclusive", cond.get("exclusive", True)))
+        strength = float(P.get("isolate_strength", cond.get("isolate_strength", 0.0)))
+        regions = list(inputs["regions"])
+
+        base_pe, base_pooled = self._prompt_embeds(inputs["base_prompt"], L=L)
+        embs, spans, off = [base_pe], [(0, base_pe.shape[1])], base_pe.shape[1]
+        for rg in regions:
+            e, _ = self._prompt_embeds(rg["prompt"], L=L)
+            embs.append(e); spans.append((off, off + e.shape[1])); off += e.shape[1]
+        prompt_embeds = torch.cat(embs, dim=1)
+        n_txt = prompt_embeds.shape[1]
+        gh = gw = self.H // 16
+        n_img = gh * gw
+
+        region_of = np.full(n_img, -1, dtype=np.int64)
+        ys = (np.arange(n_img) // gw + 0.5) / gh
+        xs = (np.arange(n_img) % gw + 0.5) / gw
+        for r, rg in enumerate(regions):
+            x0, y0, x1, y1 = rg["bbox"]
+            region_of[(xs >= x0) & (xs < x1) & (ys >= y0) & (ys < y1)] = r
+        joint = n_txt + n_img
+        NEG = -1e4
+        bias = torch.zeros(joint, joint, dtype=torch.float32)
+        text_allow = torch.zeros(n_img, n_txt, dtype=torch.bool)
+        assigned = torch.from_numpy(region_of >= 0)
+        bs0, bs1 = spans[0]
+        if exclusive:
+            text_allow[~assigned, bs0:bs1] = True
+        else:
+            text_allow[:, bs0:bs1] = True
+        for r, (s0, s1) in enumerate(spans[1:]):
+            text_allow[torch.from_numpy(region_of == r), s0:s1] = True
+        bias[n_txt:, :n_txt] = torch.where(text_allow, 0.0, NEG)
+        if strength > 0:
+            ro = torch.from_numpy(region_of)
+            img_allow = torch.eye(n_img, dtype=torch.bool)
+            for r in range(len(regions)):
+                sel = ro == r
+                img_allow |= (sel.unsqueeze(1) & sel.unsqueeze(0))
+            un = ro == -1
+            img_allow |= un.unsqueeze(0) | un.unsqueeze(1)
+            bias[n_txt:, n_txt:] = torch.where(img_allow, 0.0, -strength)
+        mask = bias.unsqueeze(0).unsqueeze(0).to(device=self.device, dtype=self.dtype)
+        region_bias = lambda q, k, ntxt, attn, pl: mask
+
+        jkw = {PAYLOAD_KEY: {"bias": region_bias, "n_txt": n_txt}}
+        with flux_intervention(self.tr):
+            return self.pipe(prompt_embeds=prompt_embeds, pooled_prompt_embeds=base_pooled,
+                             height=self.H, width=self.W, num_inference_steps=self.steps,
+                             guidance_scale=float(P.get("guidance", 3.5)),
+                             generator=torch.Generator("cpu").manual_seed(int(seed)),
+                             joint_attention_kwargs=jkw).images[0]
 
     # ---- sweep: run a recipe over a grid of overrides, return (images, records) ----
     def sweep(self, recipe, axes, inputs, seed=0):

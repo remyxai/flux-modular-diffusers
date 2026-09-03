@@ -53,6 +53,32 @@ FLUX's rope-separable position). So: **method transfer is verified per `(method 
 position-agnostic ops (`bias`/mask, K/V-`share`) are the better cross-architecture bet and are the next thing to
 test. Until then these recipes are **FLUX-family**.
 
+## Method coverage
+
+The interpreter's two run paths — **default** (capture-Q → Redux → replace-Q) and **regional** (multi-prompt +
+bias mask) — cover the methods whose whole mechanism is *generate-from-noise + an attention payload*. Methods
+that need a different *run loop* aren't fake-shipped as recipes; they're mapped here with the extension each needs,
+so "add a recipe" stays honest (a recipe should run through the interpreter, not lie about it).
+
+| method | op(s) | shipped? | needs |
+|---|---|---|---|
+| freecontrol | `replace_q` | ✅ recipe (block-parity) | — |
+| appearance | Redux condition | ✅ recipe (spike) | — |
+| structure_appearance | `replace_q` + Redux | ✅ recipe (spike) | — |
+| **regional** | `bias` (region mask) | ✅ recipe (expressible) | — |
+| stitch | `bias` + `weights` cutout | ⏳ | a cutout/composite **post-op** after the bias core |
+| story-diffusion | `capture_image_kv` + `append` | ⏳ | a **`run_batch`** loop (share K/V across a frame batch) |
+| kv-edit | `substitute` | ⏳ | a **`run_edit`** loop (source inversion → background K/V) |
+| consistedit | `blend` | ⏳ | `run_edit` (source-conditioned blend) |
+| flowedit | custom ODE | ⏳ | `run_edit` (inversion-free edit loop) |
+
+The ⏳ ops already exist in [`flux_modular/attention.py`](../flux_modular/attention.py); what's missing is the
+run-loop, not the primitive. `run_edit` (inversion) and `run_batch` (frame-shared K/V) are the two extensions that
+would bring the editing and consistency families in. Until then those stay as standalone `pipelines/`.
+
+The non-attention pipelines (`hrdit`, `dype`, `pulid`, `catvton`, `panorama`) use pos-embed swaps / LoRA compose /
+custom loops, not the attention payload — they aren't recipe-shaped and remain standalone.
+
 ## Adding a recipe
 
 1. Copy an existing YAML, set `site` / `capture` / `condition` / `ops` / `params`, mark `validated: expressible`.

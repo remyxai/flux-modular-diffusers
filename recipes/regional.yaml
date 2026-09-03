@@ -1,0 +1,13 @@
+name: regional
+description: Regional prompting — a different prompt per image region, routed by a joint-attention bias mask.
+requires: [mask]            # position-agnostic (bias) — also the best cross-model-transfer candidate
+inputs: [base_prompt, regions]   # regions: [{prompt: str, bbox: [x0,y0,x1,y1] normalized}]
+site: {stream: all}         # bias applied on all blocks
+capture: null
+condition: {kind: regional, region_seq_len: 128, exclusive: true, isolate_strength: 0.0}
+ops:
+  - {op: bias, kind: region_mask}
+params: {guidance: 3.5, isolate_strength: 0.0}   # raise isolate_strength to 1-3 only if objects fuse
+validated: expressible   # faithful to pipelines/regional-prompting block; validate via explore.ipynb before trusting
+pipeline: pipelines/regional-prompting
+paper: https://arxiv.org/abs/2302.08113
